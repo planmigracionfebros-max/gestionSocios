@@ -36,15 +36,42 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<CuotaService>();
 
-var frontendUrls = (Environment.GetEnvironmentVariable("FRONTEND_URL") ?? "http://localhost:5173")
-    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+static string[] GetCorsOrigins()
+{
+    var origins = new List<string>();
+    foreach (var key in new[] { "FRONTEND_URL", "CORS_ORIGINS" })
+    {
+        var value = Environment.GetEnvironmentVariable(key);
+        if (string.IsNullOrWhiteSpace(value)) continue;
+        origins.AddRange(value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+    if (origins.Count == 0)
+        origins.Add("http://localhost:5173");
+    return origins.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+}
+
+var corsOrigins = GetCorsOrigins();
+var allowCloudflarePages = string.Equals(
+    Environment.GetEnvironmentVariable("CORS_ALLOW_PAGES_DEV"), "true", StringComparison.OrdinalIgnoreCase);
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
-        policy.WithOrigins(frontendUrls)
-              .AllowAnyHeader()
-              .AllowAnyMethod());
+    {
+        policy.SetIsOriginAllowed(origin =>
+        {
+            if (corsOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+                return true;
+            if (allowCloudflarePages &&
+                Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
+                uri.Scheme == "https" &&
+                uri.Host.EndsWith(".pages.dev", StringComparison.OrdinalIgnoreCase))
+                return true;
+            return false;
+        })
+        .AllowAnyHeader()
+        .AllowAnyMethod();
+    });
 });
 
 var app = builder.Build();

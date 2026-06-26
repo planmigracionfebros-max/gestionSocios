@@ -15,7 +15,10 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService) : Cont
     public async Task<ActionResult<List<CuotaMensualDto>>> GetAll(
         [FromQuery] int? mes, [FromQuery] int? anio, [FromQuery] EstadoPago? estado)
     {
-        var query = db.CuotasMensuales.Include(c => c.Socio).AsQueryable();
+        var query = db.CuotasMensuales
+            .Include(c => c.Socio)
+            .Where(c => c.Socio.Estado == EstadoSocio.Activo)
+            .AsQueryable();
 
         if (mes.HasValue) query = query.Where(c => c.Mes == mes);
         if (anio.HasValue) query = query.Where(c => c.Anio == anio);
@@ -104,7 +107,10 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService) : Cont
             }
         }
 
-        return Ok(new { mensaje = $"Se generaron {generadas} cuotas para {m}/{a}" });
+        var mensaje = generadas > 0
+            ? $"Se generaron {generadas} cuotas para {m}/{a}"
+            : $"Las cuotas para {m}/{a} ya fueron generadas";
+        return Ok(new { mensaje, generadas });
     }
 
     private static CuotaMensualDto Map(CuotaMensual c) => new(

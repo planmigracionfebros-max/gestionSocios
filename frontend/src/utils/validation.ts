@@ -8,6 +8,7 @@ export const LIMITS = {
 };
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const cedulaUyRegex = /^\d{1,3}\.\d{3}\.\d{3}-\d$/;
 
 export function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
@@ -28,6 +29,7 @@ export function validateSocio(form: {
   if (!form.apellido.trim()) errors.push('El apellido es obligatorio');
   else if (form.apellido.length > LIMITS.apellido) errors.push(`El apellido no puede superar ${LIMITS.apellido} caracteres`);
   if (!form.cedula.trim()) errors.push('La cédula es obligatoria');
+  else if (!cedulaUyRegex.test(form.cedula.trim())) errors.push('La cédula debe tener el formato uruguayo X.XXX.XXX-X');
   if (!form.fechaAlta) errors.push('La fecha de alta es obligatoria');
   if (form.cuotaMensual <= 0) errors.push('La cuota mensual debe ser mayor a 0');
   if (form.email && !isValidEmail(form.email)) errors.push('El formato del email no es válido');

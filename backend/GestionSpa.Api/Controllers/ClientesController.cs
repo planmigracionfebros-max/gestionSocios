@@ -14,18 +14,11 @@ public class ClientesController(AppDbContext db) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<ClienteDto>>> GetAll([FromQuery] string? buscar)
     {
-        var query = db.Clientes.AsQueryable();
+        var clientes = await db.Clientes.OrderByDescending(c => c.FechaRegistro).ToListAsync();
         var term = ValidationHelper.SanitizeSearchTerm(buscar);
         if (term != null)
-        {
-            var lower = term.ToLower();
-            query = query.Where(c =>
-                c.Nombre.ToLower().Contains(lower) ||
-                c.Apellido.ToLower().Contains(lower) ||
-                (c.Cedula != null && c.Cedula.Contains(term)));
-        }
+            clientes = clientes.Where(c => ValidationHelper.MatchesSearch(term, c.Nombre, c.Apellido, c.Cedula)).ToList();
 
-        var clientes = await query.OrderByDescending(c => c.FechaRegistro).ToListAsync();
         return clientes.Select(Map).ToList();
     }
 

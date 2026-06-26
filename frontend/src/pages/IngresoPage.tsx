@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { ResultadoIngreso } from '../types';
 
@@ -7,7 +8,7 @@ const MAX_DIGITOS = 4;
 export default function IngresoPage() {
   const [numero, setNumero] = useState('');
   const [resultado, setResultado] = useState<ResultadoIngreso | null>(null);
-  const [errorVacio, setErrorVacio] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -15,11 +16,16 @@ export default function IngresoPage() {
 
   const validar = async (n: string) => {
     if (!n.trim()) {
-      setErrorVacio(true);
+      setErrorMsg('Ingresá un número de socio');
       setResultado(null);
       return;
     }
-    setErrorVacio(false);
+    if (n.length !== MAX_DIGITOS) {
+      setErrorMsg('Debés ingresar exactamente 4 dígitos');
+      setResultado(null);
+      return;
+    }
+    setErrorMsg('');
     setLoading(true);
     setResultado(null);
     try {
@@ -34,10 +40,10 @@ export default function IngresoPage() {
   };
 
   const pressKey = (key: string) => {
-    if (key === 'C') { setNumero(''); setResultado(null); setErrorVacio(false); return; }
+    if (key === 'C') { setNumero(''); setResultado(null); setErrorMsg(''); return; }
     if (key === 'OK') { validar(numero); return; }
     if (key === 'DEL') { setNumero(prev => prev.slice(0, -1)); return; }
-    if (numero.length < MAX_DIGITOS) setNumero(prev => prev + key);
+    if (numero.length < MAX_DIGITOS) { setNumero(prev => prev + key); setErrorMsg(''); }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -46,6 +52,8 @@ export default function IngresoPage() {
 
   return (
     <div className="kiosk-container">
+      <Link to="/" className="kiosk-back-link">← Volver al panel</Link>
+
       <div className="kiosk-card">
         <div className="kiosk-logo">♨️</div>
         <div className="kiosk-title">SPA Thermal Daymán</div>
@@ -60,7 +68,7 @@ export default function IngresoPage() {
           className="kiosk-input"
           value={numero}
           onChange={e => {
-            setErrorVacio(false);
+            setErrorMsg('');
             setNumero(e.target.value.replace(/\D/g, '').slice(0, MAX_DIGITOS));
           }}
           onKeyDown={handleKeyDown}
@@ -70,9 +78,9 @@ export default function IngresoPage() {
           autoComplete="off"
         />
 
-        {errorVacio && (
+        {errorMsg && (
           <div className="kiosk-result error" style={{ marginTop: '1rem' }}>
-            Ingresá un número de socio
+            {errorMsg}
           </div>
         )}
 

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { Socio, EstadoSocio, MetodoPago } from '../types';
-import { formatUYU, formatFecha, METODOS_PAGO, labelMetodoPago } from '../types';
+import { formatUYU, formatFecha, METODOS_PAGO, labelMetodoPago, fechaHoyLocal } from '../types';
 import { validateSocio, LIMITS } from '../utils/validation';
 import { Plus, Edit2 } from 'lucide-react';
 
-const hoy = () => new Date().toISOString().split('T')[0];
+const hoy = () => fechaHoyLocal();
 
 const estadoBadge = (estado: EstadoSocio) => {
   const map: Record<EstadoSocio, string> = { Activo: 'badge-success', Suspendido: 'badge-warning', Inactivo: 'badge-neutral' };
@@ -111,7 +111,7 @@ export default function SociosPage() {
           <thead>
             <tr>
               <th>Nº Socio</th><th>Nombre</th><th>Cédula</th><th>Teléfono</th>
-              <th>Medio de pago</th><th>Cuota</th><th>Alta</th><th>Vencimiento</th><th>Estado</th><th>Acciones</th>
+              <th>Medio de pago</th><th>Cuota</th><th>Alta</th><th className="col-vencimiento">Vencimiento</th><th className="col-estado">Estado</th><th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -124,8 +124,8 @@ export default function SociosPage() {
                 <td>{labelMetodoPago(s.medioPago)}</td>
                 <td>{formatUYU(s.cuotaMensual)}</td>
                 <td>{formatFecha(s.fechaAlta)}</td>
-                <td>{s.fechaVencimiento ? formatFecha(s.fechaVencimiento) : '—'}</td>
-                <td>{estadoBadge(s.estado)}</td>
+                <td className="col-vencimiento">{s.fechaVencimiento ? formatFecha(s.fechaVencimiento) : '—'}</td>
+                <td className="col-estado">{estadoBadge(s.estado)}</td>
                 <td>
                   <button className="btn btn-sm btn-secondary" onClick={() => openEdit(s)}><Edit2 size={14} /></button>
                   {s.estado === 'Activo' && (

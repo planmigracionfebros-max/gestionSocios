@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Net.Mail;
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,7 +17,7 @@ public static class ValidationHelper
     public const int MaxBuscar = 100;
 
     private static readonly Regex NombreRegex = new(@"^[\p{L}\s'.-]+$", RegexOptions.Compiled);
-    private static readonly Regex CedulaRegex = new(@"^[\d.\-]+$", RegexOptions.Compiled);
+    private static readonly Regex CedulaUyRegex = new(@"^\d{1,3}\.\d{3}\.\d{3}-\d$", RegexOptions.Compiled);
 
     public static List<string> ValidateSocio(
         string nombre, string apellido, string cedula,
@@ -43,8 +45,8 @@ public static class ValidationHelper
             errors.Add("La cédula es obligatoria");
         else if (cedula.Length > MaxCedula)
             errors.Add($"La cédula no puede superar {MaxCedula} caracteres");
-        else if (!CedulaRegex.IsMatch(cedula))
-            errors.Add("La cédula solo puede contener números, puntos y guiones");
+        else if (!CedulaUyRegex.IsMatch(cedula.Trim()))
+            errors.Add("La cédula debe tener el formato uruguayo X.XXX.XXX-X");
 
         if (!string.IsNullOrWhiteSpace(telefono) && telefono.Length > MaxTelefono)
             errors.Add($"El teléfono no puede superar {MaxTelefono} caracteres");
@@ -138,6 +140,30 @@ public static class ValidationHelper
         if (term.Length > MaxBuscar) term = term[..MaxBuscar];
         term = term.Replace("%", "").Replace("_", "").Replace("\\", "");
         return string.IsNullOrWhiteSpace(term) ? null : term;
+    }
+
+    public static string NormalizeForSearch(string text)
+    {
+        var normalized = text.Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder(normalized.Length);
+        foreach (var c in normalized)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+                sb.Append(c);
+        }
+        return sb.ToString().Normalize(NormalizationForm.FormC);
+    }
+
+    public static bool MatchesSearch(string term, params string?[] fields)
+    {
+        var normTerm = NormalizeForSearch(term).ToLowerInvariant();
+        foreach (var field in fields)
+        {
+            if (string.IsNullOrEmpty(field)) continue;
+            if (field.Contains(term, StringComparison.OrdinalIgnoreCase)) return true;
+            if (NormalizeForSearch(field).ToLowerInvariant().Contains(normTerm)) return true;
+        }
+        return false;
     }
 
     public static bool IsValidEmail(string email)

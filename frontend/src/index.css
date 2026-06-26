@@ -163,6 +163,10 @@ table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
   white-space: nowrap;
   max-width: 200px;
 }
+.data-table th.col-vencimiento,
+.data-table td.col-vencimiento { min-width: 105px; padding-right: 1.25rem; }
+.data-table th.col-estado,
+.data-table td.col-estado { min-width: 88px; }
 thead { background: var(--color-bg); }
 th { padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: var(--color-text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
 td { padding: 0.75rem 1rem; border-top: 1px solid var(--color-border); }
@@ -215,7 +219,21 @@ tr:hover td { background: rgba(26,107,92,0.03); }
   align-items: center;
   justify-content: center;
   padding: 2rem;
+  position: relative;
 }
+
+.kiosk-back-link {
+  position: absolute;
+  top: 1.25rem;
+  left: 1.25rem;
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+}
+.kiosk-back-link:hover { color: white; background: rgba(0, 0, 0, 0.25); }
 
 .kiosk-card {
   background: white;

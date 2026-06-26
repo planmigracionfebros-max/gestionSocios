@@ -11,6 +11,10 @@ const pagoBadge = (estado: EstadoPago) => {
   return <span className={`badge ${map[estado]}`}>{estado}</span>;
 };
 
+const emptyCargoForm = () => ({
+  servicioId: 0, socioId: 0, clienteId: 0, cantidad: 1, sumarACuota: true, notas: '', atendidoPor: '',
+});
+
 export default function CargosPage() {
   const [cargos, setCargos] = useState<Cargo[]>([]);
   const [socios, setSocios] = useState<Socio[]>([]);
@@ -21,10 +25,17 @@ export default function CargosPage() {
   const [anularModal, setAnularModal] = useState<Cargo | null>(null);
   const [motivoAnular, setMotivoAnular] = useState('');
   const [tipo, setTipo] = useState<'socio' | 'cliente'>('socio');
-  const [form, setForm] = useState({ servicioId: 0, socioId: 0, clienteId: 0, cantidad: 1, sumarACuota: true, notas: '', atendidoPor: '' });
+  const [form, setForm] = useState(emptyCargoForm());
+  const [errors, setErrors] = useState<string[]>([]);
   const [pagoForm, setPagoForm] = useState({ monto: 0, metodoPago: 'Efectivo', referencia: '', registradoPor: '' });
-  const [error, setError] = useState('');
   const [pagoError, setPagoError] = useState('');
+
+  const openNew = () => {
+    setTipo('socio');
+    setForm(emptyCargoForm());
+    setErrors([]);
+    setModal(true);
+  };
 
   const load = () => api.cargos.list().then(setCargos).catch(console.error);
   useEffect(() => {
@@ -35,13 +46,13 @@ export default function CargosPage() {
   }, []);
 
   const save = async () => {
-    setError('');
+    setErrors([]);
     const errs: string[] = [];
     if (tipo === 'socio' && !form.socioId) errs.push('Debés seleccionar un socio');
     if (tipo === 'cliente' && !form.clienteId) errs.push('Debés seleccionar un cliente');
     if (!form.servicioId) errs.push('Debés seleccionar un servicio');
     if (form.cantidad < 1) errs.push('La cantidad debe ser al menos 1');
-    if (errs.length > 0) { setError(errs.join('. ')); return; }
+    if (errs.length > 0) { setErrors(errs); return; }
     try {
       const data = {
         servicioId: form.servicioId,
@@ -55,7 +66,7 @@ export default function CargosPage() {
       await api.cargos.create(data);
       setModal(false);
       load();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Error'); }
+    } catch (e) { setErrors([e instanceof Error ? e.message : 'Error']); }
   };
 
   const registrarPago = async () => {
@@ -99,7 +110,7 @@ export default function CargosPage() {
       </div>
 
       <div className="toolbar">
-        <button className="btn btn-primary" onClick={() => { setModal(true); setError(''); }}><Plus size={16} /> Nuevo Cargo</button>
+        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Cargo</button>
       </div>
 
       <div className="card table-container">
@@ -111,7 +122,7 @@ export default function CargosPage() {
             {cargos.map(c => (
               <tr key={c.id}>
                 <td>{formatFecha(c.fecha)}</td>
-                <td>{c.servicioNombre}</td>
+                <td className="cell-ellipsis" title={c.servicioNombre}>{c.servicioNombre}</td>
                 <td className="cell-ellipsis" title={c.socioNombre || c.clienteNombre || ''}>{c.socioNombre || c.clienteNombre}</td>
                 <td><span className="badge badge-info">{c.socioId ? 'Socio' : 'Cliente'}</span></td>
                 <td>{formatUYU(c.monto * c.cantidad)}</td>
@@ -144,7 +155,11 @@ export default function CargosPage() {
         <div className="modal-overlay" onClick={() => setModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>Nuevo Cargo de Servicio</h3>
-            {error && <div className="alert alert-error">{error}</div>}
+            {errors.length > 0 && (
+              <div className="alert alert-error">
+                <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>{errors.map((err, i) => <li key={i}>{err}</li>)}</ul>
+              </div>
+            )}
 
             <div className="tabs">
               <button className={`tab${tipo === 'socio' ? ' active' : ''}`} onClick={() => setTipo('socio')}>Socio</button>

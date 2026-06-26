@@ -16,21 +16,15 @@ public class SociosController(AppDbContext db, CuotaService cuotaService) : Cont
     {
         var query = db.Socios.AsQueryable();
 
-        var term = ValidationHelper.SanitizeSearchTerm(buscar);
-        if (term != null)
-        {
-            var lower = term.ToLower();
-            query = query.Where(s =>
-                s.NumeroSocio.Contains(term) ||
-                s.Nombre.ToLower().Contains(lower) ||
-                s.Apellido.ToLower().Contains(lower) ||
-                s.Cedula.Contains(term));
-        }
-
         if (estado.HasValue)
             query = query.Where(s => s.Estado == estado);
 
         var socios = await query.OrderBy(s => s.NumeroSocio).ToListAsync();
+
+        var term = ValidationHelper.SanitizeSearchTerm(buscar);
+        if (term != null)
+            socios = socios.Where(s => ValidationHelper.MatchesSearch(term, s.NumeroSocio, s.Nombre, s.Apellido, s.Cedula)).ToList();
+
         return socios.Select(Map).ToList();
     }
 

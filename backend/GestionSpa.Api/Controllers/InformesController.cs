@@ -30,7 +30,9 @@ public class InformesController(AppDbContext db) : ControllerBase
             .SumAsync(p => p.Monto);
 
         var cuotasPendientes = await db.CuotasMensuales
-            .Where(c => c.Mes == m && c.Anio == a && c.EstadoPago != EstadoPago.Pagado)
+            .Include(c => c.Socio)
+            .Where(c => c.Mes == m && c.Anio == a && c.EstadoPago != EstadoPago.Pagado
+                && c.Socio.Estado == EstadoSocio.Activo)
             .ToListAsync();
 
         var totalPendiente = cuotasPendientes.Sum(c => c.Total - c.MontoPagado);

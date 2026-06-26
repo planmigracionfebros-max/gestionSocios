@@ -30,8 +30,16 @@ export default function ServiciosPage() {
     const validationErrors = validateServicio(form);
     if (validationErrors.length > 0) { setErrors(validationErrors); return; }
     try {
-      if (editId) await api.servicios.update(editId, form);
-      else await api.servicios.create(form);
+      const payload = {
+        nombre: form.nombre.trim(),
+        descripcion: form.descripcion.trim() || null,
+        categoria: form.categoria,
+        precio: form.precio,
+        duracionMinutos: form.duracionMinutos,
+        soloSocios: Boolean(form.soloSocios),
+      };
+      if (editId) await api.servicios.update(editId, payload);
+      else await api.servicios.create(payload);
       setModal(false);
       load();
     } catch (e) {

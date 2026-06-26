@@ -14,6 +14,7 @@ export default function ClientesPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<string[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState<Cliente | null>(null);
   const [buscarDebounced, setBuscarDebounced] = useState('');
 
   useEffect(() => {
@@ -46,9 +47,13 @@ export default function ClientesPage() {
   };
 
   const remove = async (c: Cliente) => {
-    if (!confirm(`¿Eliminar a ${c.nombre} ${c.apellido}?`)) return;
-    await api.clientes.delete(c.id);
-    load();
+    try {
+      await api.clientes.delete(c.id);
+      setConfirmDelete(null);
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error al eliminar');
+    }
   };
 
   return (
@@ -73,14 +78,14 @@ export default function ClientesPage() {
           <tbody>
             {clientes.map(c => (
               <tr key={c.id}>
-                <td className="cell-ellipsis"><strong>{c.nombre} {c.apellido}</strong></td>
+                <td className="cell-ellipsis" title={`${c.nombre} ${c.apellido}`}><strong>{c.nombre} {c.apellido}</strong></td>
                 <td>{c.cedula || '—'}</td>
                 <td>{c.telefono || '—'}</td>
                 <td>{c.email || '—'}</td>
                 <td>{formatFecha(c.fechaRegistro)}</td>
                 <td>
                   <button className="btn btn-sm btn-secondary" onClick={() => openEdit(c)}><Edit2 size={14} /></button>
-                  <button className="btn btn-sm btn-danger" style={{ marginLeft: 4 }} onClick={() => remove(c)}><Trash2 size={14} /></button>
+                  <button className="btn btn-sm btn-danger" style={{ marginLeft: 4 }} onClick={() => setConfirmDelete(c)}><Trash2 size={14} /></button>
                 </td>
               </tr>
             ))}
@@ -125,6 +130,18 @@ export default function ClientesPage() {
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={() => setModal(false)}>Cancelar</button>
               <button className="btn btn-primary" onClick={save}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmDelete && (
+        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>Confirmar eliminación</h3>
+            <p>¿Estás seguro que deseas eliminar a <strong>{confirmDelete.nombre} {confirmDelete.apellido}</strong>?</p>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>Cancelar</button>
+              <button className="btn btn-danger" onClick={() => remove(confirmDelete)}>Eliminar</button>
             </div>
           </div>
         </div>

@@ -145,8 +145,16 @@ export const MESES = [
 export const formatUYU = (monto: number) =>
   new Intl.NumberFormat('es-UY', { style: 'currency', currency: 'UYU', maximumFractionDigits: 0 }).format(monto);
 
-export const formatFecha = (fecha: string) =>
-  new Date(fecha).toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Montevideo' });
+export const formatFecha = (fecha: string) => {
+  const iso = fecha.includes('T') ? fecha.split('T')[0] : fecha.slice(0, 10);
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('es-UY', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+  });
+};
+
+export const fechaHoyLocal = () =>
+  new Date().toLocaleDateString('en-CA', { timeZone: 'America/Montevideo' });
 
 export const formatHora = (fecha: string) =>
   new Date(fecha).toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Montevideo' });

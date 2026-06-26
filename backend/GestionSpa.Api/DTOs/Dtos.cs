@@ -26,9 +26,15 @@ public record ServicioDto(
     int Id, string Nombre, string? Descripcion, CategoriaServicio Categoria,
     decimal Precio, int DuracionMinutos, bool Activo, bool SoloSocios);
 
-public record CrearServicioDto(
-    string Nombre, string? Descripcion, CategoriaServicio Categoria,
-    decimal Precio, int DuracionMinutos, bool SoloSocios);
+public class CrearServicioDto
+{
+    public string Nombre { get; set; } = string.Empty;
+    public string? Descripcion { get; set; }
+    public CategoriaServicio Categoria { get; set; }
+    public decimal Precio { get; set; }
+    public int DuracionMinutos { get; set; }
+    public bool SoloSocios { get; set; }
+}
 
 public record CargoDto(
     int Id, int ServicioId, string ServicioNombre, int? SocioId, string? SocioNombre,

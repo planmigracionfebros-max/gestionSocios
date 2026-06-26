@@ -17,16 +17,23 @@ export default function CuotasPage() {
   const [pagoModal, setPagoModal] = useState<CuotaMensual | null>(null);
   const [pagoForm, setPagoForm] = useState({ monto: 0, metodoPago: 'Efectivo', referencia: '', registradoPor: '' });
   const [pagoError, setPagoError] = useState('');
+  const [infoMsg, setInfoMsg] = useState('');
 
   const load = () => api.cuotas.list(mes, anio).then(setCuotas).catch(console.error);
   useEffect(() => { load(); }, [mes, anio]);
 
   const generar = async () => {
+    setInfoMsg('');
     const ahora = new Date();
     const esPasado = anio < ahora.getFullYear() || (anio === ahora.getFullYear() && mes < ahora.getMonth() + 1);
     if (esPasado && !confirm(`¿Generar cuotas para ${MESES[mes - 1]} ${anio}? Es un período pasado.`)) return;
-    await api.cuotas.generar(mes, anio);
-    load();
+    try {
+      const res = await api.cuotas.generar(mes, anio);
+      setInfoMsg(res.mensaje);
+      load();
+    } catch (e) {
+      setInfoMsg(e instanceof Error ? e.message : 'Error al generar cuotas');
+    }
   };
 
   const registrarPago = async () => {
@@ -59,6 +66,8 @@ export default function CuotasPage() {
         <button className="btn btn-secondary" onClick={generar}>Generar cuotas del mes</button>
       </div>
 
+      {infoMsg && <div className="alert alert-success">{infoMsg}</div>}
+
       <div className="card table-container">
         <table className="data-table">
           <thead>
@@ -71,7 +80,7 @@ export default function CuotasPage() {
             {cuotas.map(c => (
               <tr key={c.id}>
                 <td><strong>{c.numeroSocio}</strong></td>
-                <td>{c.socioNombre}</td>
+                <td className="cell-ellipsis" title={c.socioNombre}>{c.socioNombre}</td>
                 <td>{formatUYU(c.montoCuota)}</td>
                 <td>{formatUYU(c.montoServicios)}</td>
                 <td><strong>{formatUYU(c.total)}</strong></td>

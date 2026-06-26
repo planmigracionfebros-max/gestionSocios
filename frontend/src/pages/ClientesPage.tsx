@@ -14,9 +14,15 @@ export default function ClientesPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<string[]>([]);
+  const [buscarDebounced, setBuscarDebounced] = useState('');
 
-  const load = () => api.clientes.list(buscar || undefined).then(setClientes).catch(console.error);
-  useEffect(() => { load(); }, [buscar]);
+  useEffect(() => {
+    const t = setTimeout(() => setBuscarDebounced(buscar), 300);
+    return () => clearTimeout(t);
+  }, [buscar]);
+
+  const load = () => api.clientes.list(buscarDebounced || undefined).then(setClientes).catch(console.error);
+  useEffect(() => { load(); }, [buscarDebounced]);
 
   const openNew = () => { setEditId(null); setForm(emptyForm); setErrors([]); setModal(true); };
   const openEdit = (c: Cliente) => {

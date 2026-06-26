@@ -39,6 +39,8 @@ public record CrearCargoDto(
     int ServicioId, int? SocioId, int? ClienteId, int Cantidad,
     bool SumarACuota, string? Notas, string? AtendidoPor);
 
+public record AnularCargoDto(string? Motivo);
+
 public record CuotaMensualDto(
     int Id, int SocioId, string NumeroSocio, string SocioNombre,
     int Mes, int Anio, decimal MontoCuota, decimal MontoServicios,
@@ -69,8 +71,8 @@ public record InformeResumenDto(
 
 public record InformeCobranzaDto(
     int SocioId, string NumeroSocio, string NombreCompleto,
-    decimal TotalPendiente, decimal TotalPagado, EstadoPago EstadoCuotaMes,
-    List<CargoPendienteDto> CargosPendientes);
+    decimal TotalPendiente, decimal TotalPagado, EstadoPago? EstadoCuotaMes,
+    bool SinCuotaMes, List<CargoPendienteDto> CargosPendientes);
 
 public record CargoPendienteDto(
     int Id, string Servicio, decimal Monto, DateTime Fecha, EstadoPago Estado);

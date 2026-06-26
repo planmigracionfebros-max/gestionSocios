@@ -20,6 +20,7 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
             .Include(c => c.Servicio)
             .Include(c => c.Socio)
             .Include(c => c.Cliente)
+            .Where(c => c.EstadoPago != EstadoPago.Anulado)
             .AsQueryable();
 
         if (socioId.HasValue) query = query.Where(c => c.SocioId == socioId);
@@ -49,6 +50,15 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
         if (dto.ClienteId != null && servicio.SoloSocios)
             return BadRequest(new { mensaje = "Este servicio es exclusivo para socios" });
 
+        if (dto.SocioId != null)
+        {
+            var socio = await db.Socios.FindAsync(dto.SocioId);
+            if (socio == null)
+                return BadRequest(new { mensaje = "Socio no encontrado" });
+            if (socio.Estado != EstadoSocio.Activo)
+                return BadRequest(new { mensaje = "El socio no está activo" });
+        }
+
         var cargo = new Cargo
         {
             ServicioId = dto.ServicioId,
@@ -59,13 +69,13 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
             SumarACuota = dto.SumarACuota && dto.SocioId != null,
             Notas = dto.Notas,
             AtendidoPor = dto.AtendidoPor,
-            EstadoPago = dto.SocioId != null && dto.SumarACuota ? EstadoPago.Pendiente : EstadoPago.Pendiente
+            EstadoPago = EstadoPago.Pendiente
         };
 
         if (dto.SocioId != null && dto.SumarACuota)
         {
-            var ahora = DateTime.UtcNow;
-            var cuota = await cuotaService.ObtenerOCrearCuotaAsync(dto.SocioId.Value, ahora.Month, ahora.Year);
+            var (mes, anio) = UruguayTime.MesAnioActual();
+            var cuota = await cuotaService.ObtenerOCrearCuotaAsync(dto.SocioId.Value, mes, anio);
             cargo.CuotaMensualId = cuota.Id;
         }
 
@@ -88,8 +98,24 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
         var cargo = await db.Cargos.FindAsync(id);
         if (cargo == null) return NotFound();
 
+        if (cargo.EstadoPago == EstadoPago.Anulado)
+            return BadRequest(new { mensaje = "El cargo está anulado" });
+
+        if (cargo.SumarACuota)
+            return BadRequest(new { mensaje = "Este cargo se cobra en la cuota mensual" });
+
+        if (cargo.EstadoPago == EstadoPago.Pagado)
+            return BadRequest(new { mensaje = "El cargo ya está pagado" });
+
         var pagoErrors = ValidationHelper.ValidateMontoPago(dto.Monto);
         if (pagoErrors.Count > 0) return ValidationHelper.ToBadRequest(pagoErrors);
+
+        var montoTotal = cargo.Monto * cargo.Cantidad;
+        var yaPagado = await db.Pagos.Where(p => p.CargoId == id).SumAsync(p => p.Monto);
+        var saldoPendiente = montoTotal - yaPagado;
+
+        if (dto.Monto > saldoPendiente)
+            return BadRequest(new { mensaje = $"El monto supera el saldo pendiente ({saldoPendiente:N0} UYU)" });
 
         var pago = new Pago
         {
@@ -103,9 +129,7 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
 
         db.Pagos.Add(pago);
 
-        var totalPagado = await db.Pagos.Where(p => p.CargoId == id).SumAsync(p => p.Monto) + dto.Monto;
-        var montoTotal = cargo.Monto * cargo.Cantidad;
-
+        var totalPagado = yaPagado + dto.Monto;
         cargo.EstadoPago = totalPagado >= montoTotal ? EstadoPago.Pagado :
             totalPagado > 0 ? EstadoPago.Parcial : EstadoPago.Pendiente;
 
@@ -113,6 +137,38 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
 
         return new PagoDto(pago.Id, pago.Monto, pago.MetodoPago, pago.Fecha,
             pago.Referencia, pago.RegistradoPor, pago.CargoId, pago.CuotaMensualId);
+    }
+
+    [HttpPost("{id}/anular")]
+    public async Task<ActionResult<CargoDto>> AnularCargo(int id, AnularCargoDto dto)
+    {
+        var cargo = await db.Cargos
+            .Include(c => c.Servicio)
+            .Include(c => c.Socio)
+            .Include(c => c.Cliente)
+            .FirstOrDefaultAsync(c => c.Id == id);
+
+        if (cargo == null) return NotFound();
+
+        if (cargo.EstadoPago != EstadoPago.Pendiente)
+            return BadRequest(new { mensaje = "Solo se pueden anular cargos pendientes" });
+
+        if (await db.Pagos.AnyAsync(p => p.CargoId == id))
+            return BadRequest(new { mensaje = "No se puede anular un cargo con pagos registrados" });
+
+        var cuotaId = cargo.CuotaMensualId;
+        cargo.EstadoPago = EstadoPago.Anulado;
+        if (!string.IsNullOrWhiteSpace(dto.Motivo))
+            cargo.Notas = string.IsNullOrWhiteSpace(cargo.Notas)
+                ? $"[Anulado] {dto.Motivo.Trim()}"
+                : $"{cargo.Notas} [Anulado] {dto.Motivo.Trim()}";
+
+        await db.SaveChangesAsync();
+
+        if (cuotaId.HasValue)
+            await cuotaService.ActualizarMontoServiciosAsync(cuotaId.Value);
+
+        return Map(cargo);
     }
 
     private static CargoDto Map(Cargo c) => new(

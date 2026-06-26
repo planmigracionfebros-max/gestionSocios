@@ -1,6 +1,7 @@
 using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
 using GestionSpa.Api.Models;
+using GestionSpa.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,15 +14,19 @@ public class InformesController(AppDbContext db) : ControllerBase
     [HttpGet("resumen")]
     public async Task<ActionResult<InformeResumenDto>> GetResumen([FromQuery] int? mes, [FromQuery] int? anio)
     {
-        var ahora = DateTime.UtcNow;
-        var m = mes ?? ahora.Month;
-        var a = anio ?? ahora.Year;
+        var (mesActual, anioActual) = UruguayTime.MesAnioActual();
+        var m = mes ?? mesActual;
+        var a = anio ?? anioActual;
 
-        var inicioMes = new DateTime(a, m, 1, 0, 0, 0, DateTimeKind.Utc);
-        var finMes = inicioMes.AddMonths(1);
+        var inicioMes = UruguayTime.InicioMesUtc(m, a);
+        var finMes = UruguayTime.FinMesUtc(m, a);
 
         var pagosMes = await db.Pagos
             .Where(p => p.Fecha >= inicioMes && p.Fecha < finMes && p.Monto > 0)
+            .SumAsync(p => p.Monto);
+
+        var totalCobradoCuotas = await db.Pagos
+            .Where(p => p.Fecha >= inicioMes && p.Fecha < finMes && p.Monto > 0 && p.CuotaMensualId != null)
             .SumAsync(p => p.Monto);
 
         var cuotasPendientes = await db.CuotasMensuales
@@ -31,30 +36,32 @@ public class InformesController(AppDbContext db) : ControllerBase
         var totalPendiente = cuotasPendientes.Sum(c => c.Total - c.MontoPagado);
 
         var cargosPendientes = await db.Cargos
-            .Where(c => c.ClienteId != null && c.EstadoPago != EstadoPago.Pagado)
+            .Where(c => c.ClienteId != null && c.EstadoPago != EstadoPago.Pagado && c.EstadoPago != EstadoPago.Anulado)
             .CountAsync();
 
         var totalCargosPendientes = await db.Cargos
-            .Where(c => c.ClienteId != null && c.EstadoPago != EstadoPago.Pagado)
+            .Where(c => c.ClienteId != null && c.EstadoPago != EstadoPago.Pagado && c.EstadoPago != EstadoPago.Anulado)
             .SumAsync(c => c.Monto * c.Cantidad);
 
-        var hoy = DateTime.UtcNow.Date;
+        var hoyUtc = UruguayTime.Today;
+        var finHoy = hoyUtc.AddDays(1);
         var ingresosHoy = await db.Ingresos
-            .CountAsync(i => i.FechaHora >= hoy && i.Tipo == TipoIngreso.Entrada && i.AccesoPermitido);
+            .CountAsync(i => i.FechaHora >= hoyUtc && i.FechaHora < finHoy
+                && i.Tipo == TipoIngreso.Entrada && i.AccesoPermitido);
 
         var sociosActivos = await db.Socios.CountAsync(s => s.Estado == EstadoSocio.Activo);
 
         return new InformeResumenDto(
-            pagosMes, totalPendiente + totalCargosPendientes, pagosMes,
+            pagosMes, totalPendiente + totalCargosPendientes, totalCobradoCuotas,
             sociosActivos, ingresosHoy, cuotasPendientes.Count, cargosPendientes);
     }
 
     [HttpGet("cobranza")]
     public async Task<ActionResult<List<InformeCobranzaDto>>> GetCobranza([FromQuery] int? mes, [FromQuery] int? anio)
     {
-        var ahora = DateTime.UtcNow;
-        var m = mes ?? ahora.Month;
-        var a = anio ?? ahora.Year;
+        var (mesActual, anioActual) = UruguayTime.MesAnioActual();
+        var m = mes ?? mesActual;
+        var a = anio ?? anioActual;
 
         var socios = await db.Socios
             .Where(s => s.Estado != EstadoSocio.Inactivo)
@@ -67,26 +74,34 @@ public class InformesController(AppDbContext db) : ControllerBase
 
         var cargosPendientes = await db.Cargos
             .Include(c => c.Servicio)
-            .Where(c => c.SocioId != null && !c.SumarACuota && c.EstadoPago != EstadoPago.Pagado)
+            .Where(c => c.SocioId != null && !c.SumarACuota
+                && c.EstadoPago != EstadoPago.Pagado && c.EstadoPago != EstadoPago.Anulado)
             .ToListAsync();
 
         var resultado = socios.Select(s =>
         {
             cuotas.TryGetValue(s.Id, out var cuota);
             var cargosSocio = cargosPendientes.Where(c => c.SocioId == s.Id).ToList();
-            var saldoCuota = cuota != null ? cuota.Total - cuota.MontoPagado : 0;
+            var saldoCuota = cuota != null ? cuota.Total - cuota.MontoPagado : 0m;
             var saldoCargos = cargosSocio.Sum(c => c.Monto * c.Cantidad);
+            var totalPendiente = saldoCuota + saldoCargos;
+
+            if (cuota == null && cargosSocio.Count == 0)
+                return (InformeCobranzaDto?)null;
 
             return new InformeCobranzaDto(
                 s.Id, s.NumeroSocio, $"{s.Nombre} {s.Apellido}",
-                saldoCuota + saldoCargos,
+                totalPendiente,
                 cuota?.MontoPagado ?? 0,
-                cuota?.EstadoPago ?? EstadoPago.Pendiente,
+                cuota?.EstadoPago,
+                cuota == null,
                 cargosSocio.Select(c => new CargoPendienteDto(
                     c.Id, c.Servicio.Nombre, c.Monto * c.Cantidad, c.Fecha, c.EstadoPago)).ToList());
-        }).Where(r => r.TotalPendiente > 0 || r.EstadoCuotaMes != EstadoPago.Pagado)
-          .OrderByDescending(r => r.TotalPendiente)
-          .ToList();
+        })
+        .Where(r => r != null && (r.TotalPendiente > 0 || r.EstadoCuotaMes != EstadoPago.Pagado || r.SinCuotaMes))
+        .Select(r => r!)
+        .OrderByDescending(r => r.TotalPendiente)
+        .ToList();
 
         return resultado;
     }
@@ -94,7 +109,7 @@ public class InformesController(AppDbContext db) : ControllerBase
     [HttpGet("ingresos-diarios")]
     public async Task<ActionResult<InformeIngresosDto>> GetIngresosDiarios([FromQuery] DateTime? fecha)
     {
-        var dia = (fecha ?? DateTime.UtcNow).Date;
+        var dia = (fecha ?? UruguayTime.Today).Date;
         var fin = dia.AddDays(1);
 
         var ingresos = await db.Ingresos
@@ -103,11 +118,13 @@ public class InformesController(AppDbContext db) : ControllerBase
             .OrderByDescending(i => i.FechaHora)
             .ToListAsync();
 
+        var entradas = ingresos.Where(i => i.Tipo == TipoIngreso.Entrada).ToList();
+
         return new InformeIngresosDto(
             dia,
-            ingresos.Count(i => i.Tipo == TipoIngreso.Entrada),
-            ingresos.Count(i => i.AccesoPermitido),
-            ingresos.Count(i => !i.AccesoPermitido),
+            entradas.Count,
+            entradas.Count(i => i.AccesoPermitido),
+            entradas.Count(i => !i.AccesoPermitido),
             ingresos.Select(i => new IngresoDto(
                 i.Id, i.SocioId, i.Socio?.NumeroSocio ?? "",
                 i.Socio != null ? $"{i.Socio.Nombre} {i.Socio.Apellido}" : "",
@@ -133,15 +150,16 @@ public class InformesController(AppDbContext db) : ControllerBase
     [HttpGet("servicios-mas-vendidos")]
     public async Task<ActionResult> GetServiciosMasVendidos([FromQuery] int? mes, [FromQuery] int? anio)
     {
-        var ahora = DateTime.UtcNow;
-        var m = mes ?? ahora.Month;
-        var a = anio ?? ahora.Year;
-        var inicio = new DateTime(a, m, 1, 0, 0, 0, DateTimeKind.Utc);
-        var fin = inicio.AddMonths(1);
+        var (mesActual, anioActual) = UruguayTime.MesAnioActual();
+        var m = mes ?? mesActual;
+        var a = anio ?? anioActual;
+        var inicio = UruguayTime.InicioMesUtc(m, a);
+        var fin = UruguayTime.FinMesUtc(m, a);
 
         var datos = await db.Cargos
             .Include(c => c.Servicio)
-            .Where(c => c.Fecha >= inicio && c.Fecha < fin && c.Cantidad > 0)
+            .Where(c => c.Fecha >= inicio && c.Fecha < fin && c.Cantidad > 0
+                && c.EstadoPago != EstadoPago.Anulado)
             .GroupBy(c => new { c.ServicioId, c.Servicio.Nombre })
             .Select(g => new
             {

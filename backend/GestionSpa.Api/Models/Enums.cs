@@ -11,7 +11,8 @@ public enum EstadoPago
 {
     Pendiente,
     Pagado,
-    Parcial
+    Parcial,
+    Anulado
 }
 
 public enum CategoriaServicio

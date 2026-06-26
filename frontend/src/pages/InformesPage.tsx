@@ -3,8 +3,12 @@ import { api } from '../api/client';
 import type { InformeResumen, InformeCobranza, Ingreso, EstadoPago } from '../types';
 import { MESES, formatUYU, formatHora } from '../types';
 
-const pagoBadge = (estado: EstadoPago) => {
-  const map: Record<EstadoPago, string> = { Pagado: 'badge-success', Pendiente: 'badge-warning', Parcial: 'badge-info' };
+const pagoBadge = (estado: EstadoPago | null | undefined, sinCuota?: boolean) => {
+  if (sinCuota) return <span className="badge badge-neutral">Sin cuota</span>;
+  if (!estado) return <span className="badge badge-neutral">—</span>;
+  const map: Record<EstadoPago, string> = {
+    Pagado: 'badge-success', Pendiente: 'badge-warning', Parcial: 'badge-info', Anulado: 'badge-neutral',
+  };
   return <span className={`badge ${map[estado]}`}>{estado}</span>;
 };
 
@@ -15,18 +19,29 @@ export default function InformesPage() {
   const [resumen, setResumen] = useState<InformeResumen | null>(null);
   const [cobranza, setCobranza] = useState<InformeCobranza[]>([]);
   const [ingresos, setIngresos] = useState<{ fecha: string; totalEntradas: number; accesosPermitidos: number; accesosRechazados: number; detalle: Ingreso[] } | null>(null);
-  const [ingresosLoading, setIngresosLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [serviciosTop, setServiciosTop] = useState<{ nombre: string; cantidad: number; total: number }[]>([]);
   const [fechaIngresos, setFechaIngresos] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
-    if (tab === 'resumen') api.informes.resumen(mes, anio).then(setResumen);
-    if (tab === 'cobranza') api.informes.cobranza(mes, anio).then(setCobranza);
-    if (tab === 'ingresos') {
-      setIngresosLoading(true);
-      api.informes.ingresosDiarios(fechaIngresos).then(setIngresos).finally(() => setIngresosLoading(false));
-    }
-    if (tab === 'servicios') api.informes.serviciosMasVendidos(mes, anio).then(setServiciosTop);
+    setError('');
+    setLoading(true);
+
+    const load = async () => {
+      try {
+        if (tab === 'resumen') setResumen(await api.informes.resumen(mes, anio));
+        if (tab === 'cobranza') setCobranza(await api.informes.cobranza(mes, anio));
+        if (tab === 'ingresos') setIngresos(await api.informes.ingresosDiarios(fechaIngresos));
+        if (tab === 'servicios') setServiciosTop(await api.informes.serviciosMasVendidos(mes, anio));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Error al cargar informes');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
   }, [tab, mes, anio, fechaIngresos]);
 
   return (
@@ -54,11 +69,18 @@ export default function InformesPage() {
         </div>
       )}
 
-      {tab === 'resumen' && resumen && (
+      {error && <div className="alert alert-error">{error}</div>}
+      {loading && <div className="empty-state">Cargando...</div>}
+
+      {!loading && !error && tab === 'resumen' && resumen && (
         <>
           <div className="card-grid">
             <div className="stat-card success">
-              <div className="label">Total cobrado</div>
+              <div className="label">Pagos del mes</div>
+              <div className="value">{formatUYU(resumen.totalIngresosMes)}</div>
+            </div>
+            <div className="stat-card success">
+              <div className="label">Cobrado en cuotas</div>
               <div className="value">{formatUYU(resumen.totalCobrado)}</div>
             </div>
             <div className="stat-card danger">
@@ -93,7 +115,7 @@ export default function InformesPage() {
         </>
       )}
 
-      {tab === 'cobranza' && (
+      {!loading && !error && tab === 'cobranza' && (
         <div className="card table-container">
           <table className="data-table">
             <thead>
@@ -106,8 +128,8 @@ export default function InformesPage() {
               {cobranza.map(c => (
                 <tr key={c.socioId}>
                   <td><strong>{c.numeroSocio}</strong></td>
-                  <td>{c.nombreCompleto}</td>
-                  <td>{pagoBadge(c.estadoCuotaMes)}</td>
+                  <td className="cell-ellipsis" title={c.nombreCompleto}>{c.nombreCompleto}</td>
+                  <td>{pagoBadge(c.estadoCuotaMes, c.sinCuotaMes)}</td>
                   <td>{formatUYU(c.totalPagado)}</td>
                   <td style={{ color: c.totalPendiente > 0 ? 'var(--color-danger)' : 'inherit', fontWeight: 600 }}>
                     {formatUYU(c.totalPendiente)}
@@ -127,16 +149,15 @@ export default function InformesPage() {
         </div>
       )}
 
-      {tab === 'ingresos' && (
+      {!loading && !error && tab === 'ingresos' && (
         <>
           <div className="toolbar">
             <input type="date" className="form-control" style={{ width: 200 }} value={fechaIngresos} onChange={e => setFechaIngresos(e.target.value)} />
           </div>
-          {ingresosLoading && <div className="empty-state">Cargando ingresos...</div>}
-          {!ingresosLoading && ingresos && (
+          {ingresos && (
             <>
               <div className="card-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                <div className="stat-card"><div className="label">Total registros</div><div className="value">{ingresos.totalEntradas}</div></div>
+                <div className="stat-card"><div className="label">Entradas registradas</div><div className="value">{ingresos.totalEntradas}</div></div>
                 <div className="stat-card success"><div className="label">Accesos permitidos</div><div className="value">{ingresos.accesosPermitidos}</div></div>
                 <div className="stat-card danger"><div className="label">Accesos rechazados</div><div className="value">{ingresos.accesosRechazados}</div></div>
               </div>
@@ -150,7 +171,7 @@ export default function InformesPage() {
                       <tr key={i.id}>
                         <td>{formatHora(i.fechaHora)}</td>
                         <td>{i.numeroSocio}</td>
-                        <td>{i.socioNombre}</td>
+                        <td className="cell-ellipsis" title={i.socioNombre}>{i.socioNombre}</td>
                         <td>{i.tipo}</td>
                         <td>
                           <span className={`badge ${i.accesoPermitido ? 'badge-success' : 'badge-danger'}`}>
@@ -169,7 +190,7 @@ export default function InformesPage() {
         </>
       )}
 
-      {tab === 'servicios' && (
+      {!loading && !error && tab === 'servicios' && (
         <div className="card table-container">
           <table className="data-table">
             <thead>

@@ -12,13 +12,14 @@ static string GetConnectionString(IConfiguration config)
         var user = Uri.UnescapeDataString(userInfo[0]);
         var pass = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
         var db = uri.AbsolutePath.TrimStart('/');
-        return $"Host={uri.Host};Port={uri.Port};Database={db};Username={user};Password={pass};SSL Mode=Require;Trust Server Certificate=true";
+        var port = uri.Port > 0 ? uri.Port : 5432;
+        return $"Host={uri.Host};Port={port};Database={db};Username={user};Password={pass};SSL Mode=Require;Trust Server Certificate=true";
     }
     return config.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException("No hay cadena de conexión configurada");
 }
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
@@ -35,6 +36,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(GetConnectionString(builder.Configuration)));
 
 builder.Services.AddScoped<CuotaService>();
+builder.Services.AddScoped<IngresoAccesoService>();
 
 static string[] GetCorsOrigins()
 {
@@ -79,14 +81,18 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await db.Database.MigrateAsync();
     await DbSeeder.SeedAsync(db);
 }
 
-app.UseSwagger();
-app.UseSwaggerUI();
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.UseCors("AllowFrontend");
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.Run();

@@ -45,9 +45,15 @@ export default function SociosPage() {
   const [form, setForm] = useState<SocioForm>(emptyForm);
   const [errors, setErrors] = useState<string[]>([]);
   const [confirmSuspend, setConfirmSuspend] = useState<Socio | null>(null);
+  const [buscarDebounced, setBuscarDebounced] = useState('');
 
-  const load = () => api.socios.list(buscar || undefined).then(setSocios).catch(console.error);
-  useEffect(() => { load(); }, [buscar]);
+  useEffect(() => {
+    const t = setTimeout(() => setBuscarDebounced(buscar), 300);
+    return () => clearTimeout(t);
+  }, [buscar]);
+
+  const load = () => api.socios.list(buscarDebounced || undefined).then(setSocios).catch(console.error);
+  useEffect(() => { load(); }, [buscarDebounced]);
 
   const openNew = () => {
     setEditId(null); setEditNumero(''); setForm(emptyForm()); setErrors([]); setModal(true);

@@ -20,7 +20,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Socio>(e =>
         {
             e.HasIndex(s => s.NumeroSocio).IsUnique();
-            e.HasIndex(s => s.Cedula);
+            e.HasIndex(s => s.Cedula).IsUnique();
             e.Property(s => s.CuotaMensual).HasPrecision(12, 2);
         });
 
@@ -32,8 +32,10 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Cargo>(e =>
         {
             e.Property(c => c.Monto).HasPrecision(12, 2);
+            e.HasOne(c => c.Servicio).WithMany(s => s.Cargos).HasForeignKey(c => c.ServicioId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(c => c.Socio).WithMany(s => s.Cargos).HasForeignKey(c => c.SocioId).OnDelete(DeleteBehavior.SetNull);
-            e.HasOne(c => c.Cliente).WithMany(cl => cl.Cargos).HasForeignKey(c => c.ClienteId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(c => c.Cliente).WithMany(cl => cl.Cargos).HasForeignKey(c => c.ClienteId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(c => c.CuotaMensual).WithMany(q => q.Cargos).HasForeignKey(c => c.CuotaMensualId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<CuotaMensual>(e =>
@@ -42,11 +44,19 @@ public class AppDbContext : DbContext
             e.Property(c => c.MontoCuota).HasPrecision(12, 2);
             e.Property(c => c.MontoServicios).HasPrecision(12, 2);
             e.Property(c => c.MontoPagado).HasPrecision(12, 2);
+            e.HasOne(c => c.Socio).WithMany(s => s.Cuotas).HasForeignKey(c => c.SocioId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Pago>(e =>
         {
             e.Property(p => p.Monto).HasPrecision(12, 2);
+            e.HasOne(p => p.Cargo).WithMany(c => c.Pagos).HasForeignKey(p => p.CargoId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(p => p.CuotaMensual).WithMany(c => c.Pagos).HasForeignKey(p => p.CuotaMensualId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Ingreso>(e =>
+        {
+            e.HasOne(i => i.Socio).WithMany(s => s.Ingresos).HasForeignKey(i => i.SocioId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

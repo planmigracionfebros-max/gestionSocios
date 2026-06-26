@@ -5,7 +5,9 @@ import { formatUYU, formatFecha } from '../types';
 import { Plus } from 'lucide-react';
 
 const pagoBadge = (estado: EstadoPago) => {
-  const map: Record<EstadoPago, string> = { Pagado: 'badge-success', Pendiente: 'badge-warning', Parcial: 'badge-info' };
+  const map: Record<EstadoPago, string> = {
+    Pagado: 'badge-success', Pendiente: 'badge-warning', Parcial: 'badge-info', Anulado: 'badge-neutral',
+  };
   return <span className={`badge ${map[estado]}`}>{estado}</span>;
 };
 
@@ -16,10 +18,13 @@ export default function CargosPage() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [modal, setModal] = useState(false);
   const [pagoModal, setPagoModal] = useState<Cargo | null>(null);
+  const [anularModal, setAnularModal] = useState<Cargo | null>(null);
+  const [motivoAnular, setMotivoAnular] = useState('');
   const [tipo, setTipo] = useState<'socio' | 'cliente'>('socio');
   const [form, setForm] = useState({ servicioId: 0, socioId: 0, clienteId: 0, cantidad: 1, sumarACuota: true, notas: '', atendidoPor: '' });
   const [pagoForm, setPagoForm] = useState({ monto: 0, metodoPago: 'Efectivo', referencia: '', registradoPor: '' });
   const [error, setError] = useState('');
+  const [pagoError, setPagoError] = useState('');
 
   const load = () => api.cargos.list().then(setCargos).catch(console.error);
   useEffect(() => {
@@ -55,10 +60,30 @@ export default function CargosPage() {
 
   const registrarPago = async () => {
     if (!pagoModal) return;
-    if (pagoForm.monto <= 0) { alert('El monto debe ser mayor a 0'); return; }
-    await api.cargos.pagar(pagoModal.id, pagoForm);
-    setPagoModal(null);
-    load();
+    setPagoError('');
+    const saldo = pagoModal.monto * pagoModal.cantidad;
+    if (pagoForm.monto <= 0) { setPagoError('El monto debe ser mayor a 0'); return; }
+    if (pagoForm.monto > saldo) { setPagoError(`El monto no puede superar ${formatUYU(saldo)}`); return; }
+    try {
+      await api.cargos.pagar(pagoModal.id, pagoForm);
+      setPagoModal(null);
+      load();
+    } catch (e) {
+      setPagoError(e instanceof Error ? e.message : 'Error al registrar pago');
+    }
+  };
+
+  const anularCargo = async () => {
+    if (!anularModal) return;
+    if (!confirm(`¿Anular el cargo de ${anularModal.servicioNombre}?`)) return;
+    try {
+      await api.cargos.anular(anularModal.id, motivoAnular || undefined);
+      setAnularModal(null);
+      setMotivoAnular('');
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error al anular');
+    }
   };
 
   const servicioSel = servicios.find(s => s.id === form.servicioId);
@@ -87,15 +112,24 @@ export default function CargosPage() {
               <tr key={c.id}>
                 <td>{formatFecha(c.fecha)}</td>
                 <td>{c.servicioNombre}</td>
-                <td>{c.socioNombre || c.clienteNombre}</td>
+                <td className="cell-ellipsis" title={c.socioNombre || c.clienteNombre || ''}>{c.socioNombre || c.clienteNombre}</td>
                 <td><span className="badge badge-info">{c.socioId ? 'Socio' : 'Cliente'}</span></td>
                 <td>{formatUYU(c.monto * c.cantidad)}</td>
                 <td>{c.sumarACuota ? 'Sí' : 'No'}</td>
                 <td>{pagoBadge(c.estadoPago)}</td>
-                <td>
-                  {c.estadoPago !== 'Pagado' && !c.sumarACuota && (
-                    <button className="btn btn-sm btn-success" onClick={() => { setPagoModal(c); setPagoForm({ monto: c.monto * c.cantidad, metodoPago: 'Efectivo', referencia: '', registradoPor: '' }); }}>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  {c.estadoPago === 'Pendiente' && !c.sumarACuota && (
+                    <button className="btn btn-sm btn-success" onClick={() => {
+                      setPagoModal(c);
+                      setPagoForm({ monto: c.monto * c.cantidad, metodoPago: 'Efectivo', referencia: '', registradoPor: '' });
+                      setPagoError('');
+                    }}>
                       Cobrar
+                    </button>
+                  )}
+                  {c.estadoPago === 'Pendiente' && (
+                    <button className="btn btn-sm btn-danger" style={{ marginLeft: 4 }} onClick={() => { setAnularModal(c); setMotivoAnular(''); }}>
+                      Anular
                     </button>
                   )}
                 </td>
@@ -187,9 +221,10 @@ export default function CargosPage() {
             <p style={{ marginBottom: '1rem', color: 'var(--color-text-muted)' }}>
               {pagoModal.servicioNombre} — {pagoModal.clienteNombre || pagoModal.socioNombre}
             </p>
+            {pagoError && <div className="alert alert-error">{pagoError}</div>}
             <div className="form-group">
-              <label>Monto (UYU)</label>
-              <input className="form-control" type="number" min={1} value={pagoForm.monto} onChange={e => setPagoForm({ ...pagoForm, monto: Number(e.target.value) })} />
+              <label>Monto (UYU) — máx. {formatUYU(pagoModal.monto * pagoModal.cantidad)}</label>
+              <input className="form-control" type="number" min={1} max={pagoModal.monto * pagoModal.cantidad} value={pagoForm.monto} onChange={e => setPagoForm({ ...pagoForm, monto: Number(e.target.value) })} />
             </div>
             <div className="form-group">
               <label>Método de pago</label>
@@ -204,6 +239,25 @@ export default function CargosPage() {
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={() => setPagoModal(null)}>Cancelar</button>
               <button className="btn btn-success" onClick={registrarPago}>Confirmar Pago</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {anularModal && (
+        <div className="modal-overlay" onClick={() => setAnularModal(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>Anular cargo</h3>
+            <p style={{ marginBottom: '1rem' }}>
+              {anularModal.servicioNombre} — {formatUYU(anularModal.monto * anularModal.cantidad)}
+            </p>
+            <div className="form-group">
+              <label>Motivo (opcional)</label>
+              <input className="form-control" value={motivoAnular} onChange={e => setMotivoAnular(e.target.value)} placeholder="Ej: cargo registrado por error" />
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setAnularModal(null)}>Cancelar</button>
+              <button className="btn btn-danger" onClick={anularCargo}>Confirmar anulación</button>
             </div>
           </div>
         </div>

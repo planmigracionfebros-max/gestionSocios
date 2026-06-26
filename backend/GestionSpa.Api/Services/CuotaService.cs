@@ -22,12 +22,28 @@ public class CuotaService(AppDbContext db)
             Mes = mes,
             Anio = anio,
             MontoCuota = socio.CuotaMensual,
-            FechaVencimiento = new DateTime(anio, mes, 10, 0, 0, 0, DateTimeKind.Utc)
+            FechaVencimiento = UruguayTime.VencimientoCuota(mes, anio)
         };
 
         db.CuotasMensuales.Add(cuota);
-        await db.SaveChangesAsync();
-        return cuota;
+
+        for (var intento = 0; intento < 3; intento++)
+        {
+            try
+            {
+                await db.SaveChangesAsync();
+                return cuota;
+            }
+            catch (DbUpdateException) when (intento < 2)
+            {
+                db.Entry(cuota).State = EntityState.Detached;
+                var existente = await db.CuotasMensuales
+                    .FirstOrDefaultAsync(c => c.SocioId == socioId && c.Mes == mes && c.Anio == anio);
+                if (existente != null) return existente;
+            }
+        }
+
+        throw new InvalidOperationException("No se pudo crear la cuota mensual");
     }
 
     public async Task ActualizarMontoServiciosAsync(int cuotaId)
@@ -38,20 +54,49 @@ public class CuotaService(AppDbContext db)
 
         if (cuota == null) return;
 
+        var estabaPagada = cuota.EstadoPago == EstadoPago.Pagado;
+
         cuota.MontoServicios = cuota.Cargos
-            .Where(c => c.SumarACuota)
+            .Where(c => c.SumarACuota && c.EstadoPago != EstadoPago.Anulado)
             .Sum(c => c.Monto * c.Cantidad);
 
-        var total = cuota.Total;
-        if (total <= 0)
-            cuota.EstadoPago = EstadoPago.Pendiente;
-        else if (cuota.MontoPagado >= total)
-            cuota.EstadoPago = EstadoPago.Pagado;
-        else if (cuota.MontoPagado > 0)
-            cuota.EstadoPago = EstadoPago.Parcial;
-        else
-            cuota.EstadoPago = EstadoPago.Pendiente;
-
+        RecalcularEstadoPago(cuota, estabaPagada);
         await db.SaveChangesAsync();
+    }
+
+    public static void RecalcularEstadoPago(CuotaMensual cuota, bool estabaPagada = false)
+    {
+        var total = cuota.Total;
+
+        if (total <= 0)
+        {
+            cuota.EstadoPago = cuota.MontoPagado > 0 ? EstadoPago.Pagado : EstadoPago.Pendiente;
+            return;
+        }
+
+        if (cuota.MontoPagado >= total)
+        {
+            cuota.EstadoPago = EstadoPago.Pagado;
+            cuota.FechaPago ??= DateTime.UtcNow;
+            return;
+        }
+
+        if (cuota.MontoPagado <= 0)
+        {
+            cuota.EstadoPago = EstadoPago.Pendiente;
+            return;
+        }
+
+        cuota.EstadoPago = estabaPagada ? EstadoPago.Pendiente : EstadoPago.Parcial;
+    }
+
+    public async Task MarcarCargosCuotaComoPagadosAsync(int cuotaId)
+    {
+        var cargos = await db.Cargos
+            .Where(c => c.CuotaMensualId == cuotaId && c.SumarACuota && c.EstadoPago != EstadoPago.Anulado)
+            .ToListAsync();
+
+        foreach (var cargo in cargos)
+            cargo.EstadoPago = EstadoPago.Pagado;
     }
 }

@@ -1,0 +1,35 @@
+Checklist pre-deploy — GestionSpa
+=================================
+
+Backend
+[ ] dotnet build en backend/GestionSpa.Api
+[ ] Migraciones EF aplicadas (MigrateAsync al iniciar API)
+[ ] Si la DB ya existía con EnsureCreated: insertar fila en __EFMigrationsHistory manualmente
+
+Frontend (Cloudflare Pages)
+[ ] Root: frontend
+[ ] Build: npm ci && npm run build
+[ ] Output: dist
+[ ] VITE_API_URL=https://gestionspa-production.up.railway.app/api  (debe terminar en /api)
+
+Railway API
+[ ] DATABASE_URL=${{Postgres.DATABASE_URL}}
+[ ] FRONTEND_URL=https://gestionspa.pages.dev
+[ ] CORS_ALLOW_PAGES_DEV=false  (prod real)
+[ ] ASPNETCORE_ENVIRONMENT=Production
+[ ] PORT=8080 (default en Program.cs)
+
+Verificaciones
+[ ] GET /health responde { status: ok }
+[ ] Swagger NO visible en producción
+[ ] Alta socio → cuota auto → cargo → pago → ingreso kiosk
+[ ] Ingreso día 11 con cuota pendiente → rechaza
+[ ] Ingreso sin cuota generada → crea cuota y evalúa (no bypass)
+[ ] Pago cuota marca cargos vinculados como pagados
+[ ] Pagar cargo con sumarACuota=true → rechazado
+[ ] Anular cargo pendiente funciona
+[ ] Deep link /socios funciona (_redirects OK)
+[ ] Ruta inventada muestra 404
+
+Datos
+[ ] Ejecutar scripts/cleanup-qa.sql en prod si hay datos de prueba

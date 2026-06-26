@@ -79,8 +79,8 @@ public class SociosController(AppDbContext db, CuotaService cuotaService) : Cont
         db.Socios.Add(socio);
         await db.SaveChangesAsync();
 
-        var ahora = DateTime.UtcNow;
-        await cuotaService.ObtenerOCrearCuotaAsync(socio.Id, ahora.Month, ahora.Year);
+        var (mes, anio) = UruguayTime.MesAnioActual();
+        await cuotaService.ObtenerOCrearCuotaAsync(socio.Id, mes, anio);
 
         return CreatedAtAction(nameof(GetById), new { id = socio.Id }, Map(socio));
     }
@@ -106,10 +106,26 @@ public class SociosController(AppDbContext db, CuotaService cuotaService) : Cont
         socio.Email = dto.Email?.Trim();
         socio.FechaAlta = dto.FechaAlta.ToUniversalTime();
         socio.FechaVencimiento = dto.FechaVencimiento?.ToUniversalTime();
+        var cuotaAnterior = socio.CuotaMensual;
         socio.MedioPago = dto.MedioPago;
         socio.CuotaMensual = dto.CuotaMensual;
 
         await db.SaveChangesAsync();
+
+        if (cuotaAnterior != dto.CuotaMensual)
+        {
+            var (mes, anio) = UruguayTime.MesAnioActual();
+            var cuotaMes = await db.CuotasMensuales
+                .FirstOrDefaultAsync(c => c.SocioId == id && c.Mes == mes && c.Anio == anio);
+
+            if (cuotaMes != null && cuotaMes.EstadoPago != EstadoPago.Pagado)
+            {
+                cuotaMes.MontoCuota = dto.CuotaMensual;
+                CuotaService.RecalcularEstadoPago(cuotaMes);
+                await db.SaveChangesAsync();
+            }
+        }
+
         return Map(socio);
     }
 

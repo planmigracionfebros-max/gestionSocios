@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { InformeResumen } from '../types';
 import { formatUYU } from '../types';
@@ -7,11 +8,13 @@ import { Users, DollarSign, AlertTriangle, DoorOpen } from 'lucide-react';
 export default function Dashboard() {
   const [resumen, setResumen] = useState<InformeResumen | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
+    setError('');
     api.informes.resumen()
       .then(setResumen)
-      .catch(console.error)
+      .catch(e => setError(e instanceof Error ? e.message : 'No se pudo cargar el panel'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -24,9 +27,15 @@ export default function Dashboard() {
         <p>SPA Thermal Daymán — Termas del Daymán, Salto</p>
       </div>
 
+      {error && (
+        <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+          Error al cargar datos: {error}. Verificá que la API esté disponible y VITE_API_URL esté configurada.
+        </div>
+      )}
+
       <div className="card-grid">
         <div className="stat-card success">
-          <div className="label">Cobrado este mes</div>
+          <div className="label">Cobrado en cuotas (mes)</div>
           <div className="value">{formatUYU(resumen?.totalCobrado ?? 0)}</div>
         </div>
         <div className="stat-card warning">
@@ -63,8 +72,8 @@ export default function Dashboard() {
           cobranzas e ingresos al complejo termal del Daymán en Salto, Uruguay.
         </p>
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <a href="/ingreso" className="btn btn-primary">Abrir Control de Ingreso</a>
-          <a href="/informes" className="btn btn-secondary">Ver Informes</a>
+          <Link to="/ingreso" className="btn btn-primary">Abrir Control de Ingreso</Link>
+          <Link to="/informes" className="btn btn-secondary">Ver Informes</Link>
         </div>
       </div>
     </div>

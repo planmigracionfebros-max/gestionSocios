@@ -43,8 +43,15 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService) : Cont
         var cuota = await db.CuotasMensuales.FindAsync(id);
         if (cuota == null) return NotFound();
 
+        if (cuota.EstadoPago == EstadoPago.Pagado)
+            return BadRequest(new { mensaje = "La cuota ya está pagada" });
+
         var pagoErrors = ValidationHelper.ValidateMontoPago(dto.Monto);
         if (pagoErrors.Count > 0) return ValidationHelper.ToBadRequest(pagoErrors);
+
+        var saldoPendiente = cuota.Total - cuota.MontoPagado;
+        if (dto.Monto > saldoPendiente)
+            return BadRequest(new { mensaje = $"El monto supera el saldo pendiente ({saldoPendiente:N0} UYU)" });
 
         var pago = new Pago
         {
@@ -64,6 +71,7 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService) : Cont
         {
             cuota.EstadoPago = EstadoPago.Pagado;
             cuota.FechaPago = DateTime.UtcNow;
+            await cuotaService.MarcarCargosCuotaComoPagadosAsync(id);
         }
         else if (cuota.MontoPagado > 0)
             cuota.EstadoPago = EstadoPago.Parcial;
@@ -79,9 +87,9 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService) : Cont
     [HttpPost("generar")]
     public async Task<ActionResult> GenerarCuotasMes([FromQuery] int? mes, [FromQuery] int? anio)
     {
-        var ahora = DateTime.UtcNow;
-        var m = mes ?? ahora.Month;
-        var a = anio ?? ahora.Year;
+        var (mesActual, anioActual) = UruguayTime.MesAnioActual();
+        var m = mes ?? mesActual;
+        var a = anio ?? anioActual;
 
         var sociosActivos = await db.Socios.Where(s => s.Estado == EstadoSocio.Activo).ToListAsync();
         var generadas = 0;

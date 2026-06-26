@@ -4,7 +4,9 @@ import type { CuotaMensual, EstadoPago } from '../types';
 import { MESES, formatUYU } from '../types';
 
 const pagoBadge = (estado: EstadoPago) => {
-  const map: Record<EstadoPago, string> = { Pagado: 'badge-success', Pendiente: 'badge-warning', Parcial: 'badge-info' };
+  const map: Record<EstadoPago, string> = {
+    Pagado: 'badge-success', Pendiente: 'badge-warning', Parcial: 'badge-info', Anulado: 'badge-neutral',
+  };
   return <span className={`badge ${map[estado]}`}>{estado}</span>;
 };
 

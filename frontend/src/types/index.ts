@@ -1,7 +1,14 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const rawApiUrl = import.meta.env.VITE_API_URL as string | undefined;
+const isProd = import.meta.env.PROD;
+
+if (isProd && !rawApiUrl) {
+  throw new Error('VITE_API_URL es obligatorio en producción. Configuralo en Cloudflare Pages antes del build.');
+}
+
+export const API_URL = rawApiUrl || 'http://localhost:5000/api';
 
 export type EstadoSocio = 'Activo' | 'Suspendido' | 'Inactivo';
-export type EstadoPago = 'Pendiente' | 'Pagado' | 'Parcial';
+export type EstadoPago = 'Pendiente' | 'Pagado' | 'Parcial' | 'Anulado';
 export type CategoriaServicio = 'Masajes' | 'Termal' | 'Facial' | 'Corporal' | 'Paquetes' | 'Otros';
 export type MetodoPago = 'Efectivo' | 'TarjetaDebito' | 'TarjetaCredito' | 'Transferencia' | 'MercadoPago';
 export type TipoIngreso = 'Entrada' | 'Salida';
@@ -103,7 +110,8 @@ export interface InformeCobranza {
   nombreCompleto: string;
   totalPendiente: number;
   totalPagado: number;
-  estadoCuotaMes: EstadoPago;
+  estadoCuotaMes?: EstadoPago | null;
+  sinCuotaMes: boolean;
   cargosPendientes: { id: number; servicio: string; monto: number; fecha: string; estado: EstadoPago }[];
 }
 
@@ -138,7 +146,7 @@ export const formatUYU = (monto: number) =>
   new Intl.NumberFormat('es-UY', { style: 'currency', currency: 'UYU', maximumFractionDigits: 0 }).format(monto);
 
 export const formatFecha = (fecha: string) =>
-  new Date(fecha).toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  new Date(fecha).toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Montevideo' });
 
 export const formatHora = (fecha: string) =>
-  new Date(fecha).toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' });
+  new Date(fecha).toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Montevideo' });

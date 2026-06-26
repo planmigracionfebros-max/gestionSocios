@@ -82,6 +82,10 @@ public class ClientesController(AppDbContext db) : ControllerBase
     {
         var cliente = await db.Clientes.FindAsync(id);
         if (cliente == null) return NotFound();
+
+        if (await db.Cargos.AnyAsync(c => c.ClienteId == id))
+            return BadRequest(new { mensaje = "No se puede eliminar: el cliente tiene cargos registrados" });
+
         db.Clientes.Remove(cliente);
         await db.SaveChangesAsync();
         return NoContent();

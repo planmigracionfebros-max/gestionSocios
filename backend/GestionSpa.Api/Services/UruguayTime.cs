@@ -1,0 +1,23 @@
+namespace GestionSpa.Api.Services;
+
+public static class UruguayTime
+{
+    private static readonly TimeZoneInfo Tz = TimeZoneInfo.FindSystemTimeZoneById(
+        OperatingSystem.IsWindows() ? "Montevideo Standard Time" : "America/Montevideo");
+
+    public static DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Tz);
+
+    public static DateTime Today => Now.Date;
+
+    public static (int Mes, int Anio) MesAnioActual() => (Now.Month, Now.Year);
+
+    public static DateTime InicioMesUtc(int mes, int anio) =>
+        TimeZoneInfo.ConvertTimeToUtc(new DateTime(anio, mes, 1, 0, 0, 0, DateTimeKind.Unspecified), Tz);
+
+    public static DateTime FinMesUtc(int mes, int anio) => InicioMesUtc(mes, anio).AddMonths(1);
+
+    public static DateTime VencimientoCuota(int mes, int anio) =>
+        TimeZoneInfo.ConvertTimeToUtc(new DateTime(anio, mes, 10, 23, 59, 59, DateTimeKind.Unspecified), Tz);
+
+    public static bool EsDespuesDelDia10() => Now.Day > 10;
+}

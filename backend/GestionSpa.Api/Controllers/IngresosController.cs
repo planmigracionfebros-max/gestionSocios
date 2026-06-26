@@ -1,6 +1,7 @@
 using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
 using GestionSpa.Api.Models;
+using GestionSpa.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +9,7 @@ namespace GestionSpa.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class IngresosController(AppDbContext db) : ControllerBase
+public class IngresosController(AppDbContext db, IngresoAccesoService accesoService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<IngresoDto>>> GetAll([FromQuery] DateTime? fecha)
@@ -37,31 +38,22 @@ public class IngresosController(AppDbContext db) : ControllerBase
                 false, "Número de socio no encontrado", null, dto.NumeroSocio, null, null));
         }
 
-        if (socio.Estado != EstadoSocio.Activo)
-        {
-            await RegistrarIngreso(socio.Id, false, $"Socio {socio.Estado.ToString().ToLower()}");
-            return Ok(new ResultadoIngresoDto(
-                false, $"Acceso denegado: socio {socio.Estado.ToString().ToLower()}",
-                $"{socio.Nombre} {socio.Apellido}", socio.NumeroSocio, socio.Estado, null));
-        }
+        var evaluacion = await accesoService.EvaluarAccesoSocioAsync(socio);
 
-        var ahora = DateTime.UtcNow;
-        var cuota = await db.CuotasMensuales
-            .FirstOrDefaultAsync(c => c.SocioId == socio.Id && c.Mes == ahora.Month && c.Anio == ahora.Year);
-
-        if (cuota != null && cuota.EstadoPago == EstadoPago.Pendiente && ahora.Day > 10)
+        if (!evaluacion.Permitido)
         {
-            await RegistrarIngreso(socio.Id, false, "Cuota del mes pendiente de pago");
+            await RegistrarIngreso(socio.Id, false, evaluacion.MotivoRechazo);
             return Ok(new ResultadoIngresoDto(
-                false, "Acceso denegado: cuota del mes pendiente",
-                $"{socio.Nombre} {socio.Apellido}", socio.NumeroSocio, socio.Estado, cuota.EstadoPago));
+                false, $"Acceso denegado: {evaluacion.MotivoRechazo}",
+                $"{socio.Nombre} {socio.Apellido}", socio.NumeroSocio, socio.Estado,
+                evaluacion.Cuota?.EstadoPago));
         }
 
         await RegistrarIngreso(socio.Id, true, null);
         return Ok(new ResultadoIngresoDto(
             true, $"¡Bienvenido/a, {socio.Nombre}!",
             $"{socio.Nombre} {socio.Apellido}", socio.NumeroSocio, socio.Estado,
-            cuota?.EstadoPago));
+            evaluacion.Cuota?.EstadoPago));
     }
 
     [HttpPost("salida")]

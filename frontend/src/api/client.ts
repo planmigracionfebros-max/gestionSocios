@@ -48,6 +48,7 @@ export const api = {
     },
     create: (data: unknown) => request<import('../types').Cargo>('/cargos', { method: 'POST', body: JSON.stringify(data) }),
     pagar: (id: number, data: unknown) => request<unknown>(`/cargos/${id}/pagar`, { method: 'POST', body: JSON.stringify(data) }),
+    anular: (id: number, motivo?: string) => request<import('../types').Cargo>(`/cargos/${id}/anular`, { method: 'POST', body: JSON.stringify({ motivo: motivo || null }) }),
   },
   cuotas: {
     list: (mes?: number, anio?: number, estado?: string) => {

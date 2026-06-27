@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Users, UserPlus, Sparkles, Receipt,
   BarChart3, DoorOpen, CreditCard, Menu, ChevronsLeft
 } from 'lucide-react';
+
+const MOBILE_QUERY = '(max-width: 768px)';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Panel' },
@@ -18,14 +20,46 @@ const navItems = [
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const sync = (mobile: boolean) => {
+      setIsMobile(mobile);
+      setSidebarOpen(!mobile);
+    };
+
+    sync(mq.matches);
+
+    const onChange = (e: MediaQueryListEvent) => sync(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    document.body.style.overflow = isMobile && sidebarOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [isMobile, sidebarOpen]);
+
+  const closeSidebar = () => setSidebarOpen(false);
+  const openSidebar = () => setSidebarOpen(true);
 
   return (
-    <div className={`app-layout${sidebarOpen ? '' : ' sidebar-collapsed'}`}>
+    <div className={`app-layout${sidebarOpen ? '' : ' sidebar-collapsed'}${isMobile ? ' is-mobile' : ''}`}>
+      {isMobile && sidebarOpen && (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          onClick={closeSidebar}
+          aria-label="Cerrar menú"
+        />
+      )}
+
       <aside className="sidebar" aria-hidden={!sidebarOpen}>
         <button
           type="button"
           className="sidebar-toggle sidebar-toggle--collapse"
-          onClick={() => setSidebarOpen(false)}
+          onClick={closeSidebar}
           aria-label="Ocultar menú"
           title="Ocultar menú"
         >
@@ -37,7 +71,13 @@ export default function Layout() {
         </div>
         <nav className="sidebar-nav">
           {navItems.map(({ to, icon: Icon, label }) => (
-            <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+              onClick={() => { if (isMobile) closeSidebar(); }}
+            >
               <Icon size={18} />
               {label}
             </NavLink>
@@ -50,7 +90,7 @@ export default function Layout() {
           <button
             type="button"
             className="sidebar-toggle sidebar-toggle--expand"
-            onClick={() => setSidebarOpen(true)}
+            onClick={openSidebar}
             aria-label="Mostrar menú"
             title="Mostrar menú"
           >

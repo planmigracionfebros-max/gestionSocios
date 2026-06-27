@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Users, UserPlus, Sparkles, Receipt,
-  BarChart3, DoorOpen, CreditCard
+  BarChart3, DoorOpen, CreditCard, Menu, ChevronsLeft
 } from 'lucide-react';
 
 const navItems = [
@@ -16,9 +17,20 @@ const navItems = [
 ];
 
 export default function Layout() {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   return (
-    <div className="app-layout">
-      <aside className="sidebar">
+    <div className={`app-layout${sidebarOpen ? '' : ' sidebar-collapsed'}`}>
+      <aside className="sidebar" aria-hidden={!sidebarOpen}>
+        <button
+          type="button"
+          className="sidebar-toggle sidebar-toggle--collapse"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Ocultar menú"
+          title="Ocultar menú"
+        >
+          <ChevronsLeft size={18} />
+        </button>
         <div className="sidebar-brand">
           <h1>SPA Thermal Daymán</h1>
           <p>Termas del Daymán · Salto, Uruguay</p>
@@ -32,9 +44,24 @@ export default function Layout() {
           ))}
         </nav>
       </aside>
-      <main className="main-content">
-        <Outlet />
-      </main>
+
+      <div className="main-column">
+        <header className="top-bar">
+          <button
+            type="button"
+            className="sidebar-toggle sidebar-toggle--expand"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Mostrar menú"
+            title="Mostrar menú"
+          >
+            <Menu size={20} />
+          </button>
+          <span className="top-bar-brand">SPA Thermal Daymán</span>
+        </header>
+        <main className="main-content">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

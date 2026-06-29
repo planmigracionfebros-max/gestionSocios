@@ -19,6 +19,9 @@ public class Socio
     public EstadoSocio Estado { get; set; } = EstadoSocio.Activo;
     public string? Observaciones { get; set; }
 
+    public int? FamiliaId { get; set; }
+    public Familia? Familia { get; set; }
+
     public ICollection<Cargo> Cargos { get; set; } = [];
     public ICollection<CuotaMensual> Cuotas { get; set; } = [];
     public ICollection<Ingreso> Ingresos { get; set; } = [];

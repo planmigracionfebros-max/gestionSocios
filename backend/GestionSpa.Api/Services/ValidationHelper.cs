@@ -75,6 +75,22 @@ public static class ValidationHelper
         return errors;
     }
 
+    public static List<string> ValidateFamilia(string nombre, decimal cuotaMensual)
+    {
+        var errors = new List<string>();
+        if (string.IsNullOrWhiteSpace(nombre))
+            errors.Add("El nombre de la familia es obligatorio");
+        else if (nombre.Length > MaxNombre)
+            errors.Add($"El nombre no puede superar {MaxNombre} caracteres");
+        else if (!NombreRegex.IsMatch(nombre))
+            errors.Add("El nombre contiene caracteres no válidos");
+
+        if (cuotaMensual <= 0)
+            errors.Add("La cuota mensual debe ser mayor a 0");
+
+        return errors;
+    }
+
     public static List<string> ValidateCliente(string nombre, string apellido, string? email)
     {
         var errors = new List<string>();

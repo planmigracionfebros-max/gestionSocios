@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Users, UserPlus, Sparkles, Receipt,
-  BarChart3, DoorOpen, CreditCard, Menu, ChevronsLeft
+  BarChart3, DoorOpen, CreditCard, Menu, ChevronsLeft, Home
 } from 'lucide-react';
 
 const MOBILE_QUERY = '(max-width: 768px)';
@@ -10,6 +10,7 @@ const MOBILE_QUERY = '(max-width: 768px)';
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Panel' },
   { to: '/socios', icon: Users, label: 'Socios' },
+  { to: '/familias', icon: Home, label: 'Familia' },
   { to: '/clientes', icon: UserPlus, label: 'Clientes' },
   { to: '/servicios', icon: Sparkles, label: 'Servicios' },
   { to: '/cargos', icon: Receipt, label: 'Cargos' },

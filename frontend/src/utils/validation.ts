@@ -39,6 +39,14 @@ export function validateSocio(form: {
   return errors;
 }
 
+export function validateFamilia(form: { nombre: string; cuotaMensual: number }): string[] {
+  const errors: string[] = [];
+  if (!form.nombre.trim()) errors.push('El nombre de la familia es obligatorio');
+  else if (form.nombre.length > LIMITS.nombre) errors.push(`El nombre no puede superar ${LIMITS.nombre} caracteres`);
+  if (form.cuotaMensual <= 0) errors.push('La cuota mensual debe ser mayor a 0');
+  return errors;
+}
+
 export function validateCliente(form: { nombre: string; apellido: string; email: string }): string[] {
   const errors: string[] = [];
   if (!form.nombre.trim()) errors.push('El nombre es obligatorio');

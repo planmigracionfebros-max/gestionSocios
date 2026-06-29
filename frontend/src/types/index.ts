@@ -29,6 +29,16 @@ export interface Socio {
   cuotaMensual: number;
   estado: EstadoSocio;
   observaciones?: string;
+  familiaId?: number;
+  familiaNombre?: string;
+}
+
+export interface Familia {
+  id: number;
+  nombre: string;
+  cuotaMensual: number;
+  observaciones?: string;
+  cantidadSocios: number;
 }
 
 export interface Cliente {

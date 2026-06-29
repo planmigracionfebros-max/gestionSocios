@@ -6,13 +6,20 @@ public record SocioDto(
     int Id, string NumeroSocio, string Nombre, string Apellido, string Cedula,
     string? Telefono, string? Email, string? Direccion, string? Ciudad,
     DateTime FechaAlta, DateTime? FechaVencimiento, MetodoPago MedioPago,
-    decimal CuotaMensual, EstadoSocio Estado, string? Observaciones);
+    decimal CuotaMensual, EstadoSocio Estado, string? Observaciones,
+    int? FamiliaId, string? FamiliaNombre);
 
 public record CrearSocioDto(
     string Nombre, string Apellido, string Cedula,
     string? Telefono, string? Email,
     DateTime FechaAlta, DateTime? FechaVencimiento,
-    MetodoPago MedioPago, decimal CuotaMensual);
+    MetodoPago MedioPago, decimal CuotaMensual, int? FamiliaId);
+
+public record FamiliaDto(
+    int Id, string Nombre, decimal CuotaMensual, string? Observaciones, int CantidadSocios);
+
+public record CrearFamiliaDto(
+    string Nombre, decimal CuotaMensual, string? Observaciones);
 
 public record ClienteDto(
     int Id, string Nombre, string Apellido, string? Cedula,

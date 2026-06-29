@@ -8,6 +8,7 @@ public class AppDbContext : DbContext
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
     public DbSet<Socio> Socios => Set<Socio>();
+    public DbSet<Familia> Familias => Set<Familia>();
     public DbSet<Cliente> Clientes => Set<Cliente>();
     public DbSet<Servicio> Servicios => Set<Servicio>();
     public DbSet<Cargo> Cargos => Set<Cargo>();
@@ -22,6 +23,13 @@ public class AppDbContext : DbContext
             e.HasIndex(s => s.NumeroSocio).IsUnique();
             e.HasIndex(s => s.Cedula).IsUnique();
             e.Property(s => s.CuotaMensual).HasPrecision(12, 2);
+            e.HasOne(s => s.Familia).WithMany(f => f.Socios).HasForeignKey(s => s.FamiliaId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Familia>(e =>
+        {
+            e.HasIndex(f => f.Nombre).IsUnique();
+            e.Property(f => f.CuotaMensual).HasPrecision(12, 2);
         });
 
         modelBuilder.Entity<Servicio>(e =>

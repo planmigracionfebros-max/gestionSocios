@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import type { Socio, EstadoSocio, MetodoPago } from '../types';
+import type { Socio, EstadoSocio, MetodoPago, Familia } from '../types';
 import { formatUYU, formatFecha, METODOS_PAGO, labelMetodoPago, fechaHoyLocal } from '../types';
 import { validateSocio, LIMITS } from '../utils/validation';
 import { Plus, Edit2 } from 'lucide-react';
@@ -22,11 +22,13 @@ interface SocioForm {
   fechaAlta: string;
   fechaVencimiento: string;
   cuotaMensual: number;
+  familiaId: string;
 }
 
 const emptyForm = (): SocioForm => ({
   nombre: '', apellido: '', cedula: '', telefono: '', email: '',
   medioPago: 'Efectivo', fechaAlta: hoy(), fechaVencimiento: '', cuotaMensual: 3500,
+  familiaId: '',
 });
 
 const toPayload = (form: SocioForm) => ({
@@ -34,10 +36,12 @@ const toPayload = (form: SocioForm) => ({
   telefono: form.telefono.trim() || null, email: form.email.trim() || null,
   medioPago: form.medioPago, fechaAlta: form.fechaAlta,
   fechaVencimiento: form.fechaVencimiento || null, cuotaMensual: form.cuotaMensual,
+  familiaId: form.familiaId ? Number(form.familiaId) : null,
 });
 
 export default function SociosPage() {
   const [socios, setSocios] = useState<Socio[]>([]);
+  const [familias, setFamilias] = useState<Familia[]>([]);
   const [buscar, setBuscar] = useState('');
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -54,6 +58,16 @@ export default function SociosPage() {
 
   const load = () => api.socios.list(buscarDebounced || undefined).then(setSocios).catch(console.error);
   useEffect(() => { load(); }, [buscarDebounced]);
+  useEffect(() => { api.familias.list().then(setFamilias).catch(console.error); }, []);
+
+  const onFamiliaChange = (familiaId: string) => {
+    const familia = familias.find(f => String(f.id) === familiaId);
+    setForm(prev => ({
+      ...prev,
+      familiaId,
+      cuotaMensual: familia ? familia.cuotaMensual : prev.cuotaMensual,
+    }));
+  };
 
   const openNew = () => {
     setEditId(null); setEditNumero(''); setForm(emptyForm()); setErrors([]); setModal(true);
@@ -67,6 +81,7 @@ export default function SociosPage() {
       fechaAlta: s.fechaAlta.split('T')[0],
       fechaVencimiento: s.fechaVencimiento?.split('T')[0] || '',
       cuotaMensual: s.cuotaMensual,
+      familiaId: s.familiaId ? String(s.familiaId) : '',
     });
     setErrors([]); setModal(true);
   };
@@ -110,7 +125,7 @@ export default function SociosPage() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Nº Socio</th><th>Nombre</th><th>Cédula</th><th>Teléfono</th>
+              <th>Nº Socio</th><th>Nombre</th><th>Familia</th><th>Cédula</th><th>Teléfono</th>
               <th>Medio de pago</th><th>Cuota</th><th>Alta</th><th className="col-vencimiento">Vencimiento</th><th className="col-estado">Estado</th><th>Acciones</th>
             </tr>
           </thead>
@@ -119,6 +134,7 @@ export default function SociosPage() {
               <tr key={s.id}>
                 <td><strong>{s.numeroSocio}</strong></td>
                 <td className="cell-ellipsis" title={`${s.nombre} ${s.apellido}`}>{s.nombre} {s.apellido}</td>
+                <td>{s.familiaNombre || '—'}</td>
                 <td>{s.cedula}</td>
                 <td>{s.telefono || '—'}</td>
                 <td>{labelMetodoPago(s.medioPago)}</td>
@@ -175,6 +191,15 @@ export default function SociosPage() {
             <div className="form-group">
               <label>Email</label>
               <input className="form-control" type="email" maxLength={LIMITS.email} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label>Familia</label>
+              <select className="form-control" value={form.familiaId} onChange={e => onFamiliaChange(e.target.value)}>
+                <option value="">Sin familia</option>
+                {familias.map(f => (
+                  <option key={f.id} value={f.id}>{f.nombre} ({formatUYU(f.cuotaMensual)})</option>
+                ))}
+              </select>
             </div>
             <div className="form-row">
               <div className="form-group">

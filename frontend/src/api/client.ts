@@ -35,6 +35,13 @@ export const api = {
     update: (id: number, data: unknown) => request<import('../types').Cliente>(`/clientes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/clientes/${id}`, { method: 'DELETE' }),
   },
+  familias: {
+    list: (buscar?: string) => request<import('../types').Familia[]>(`/familias${buscar ? '?buscar=' + buscar : ''}`),
+    get: (id: number) => request<import('../types').Familia>(`/familias/${id}`),
+    create: (data: unknown) => request<import('../types').Familia>('/familias', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: unknown) => request<import('../types').Familia>(`/familias/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: number) => request<void>(`/familias/${id}`, { method: 'DELETE' }),
+  },
   servicios: {
     list: (activos?: boolean) => request<import('../types').Servicio[]>(`/servicios${activos ? '?activos=true' : ''}`),
     create: (data: unknown) => request<import('../types').Servicio>('/servicios', { method: 'POST', body: JSON.stringify(data) }),

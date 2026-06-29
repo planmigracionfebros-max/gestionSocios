@@ -8,9 +8,10 @@ public static class DbSeeder
 {
     public static async Task SeedAsync(AppDbContext db)
     {
-        if (!await db.Usuarios.AnyAsync())
+        var emisor = await db.Emisores.FirstOrDefaultAsync(e => e.Slug == "dayman");
+        if (emisor is null)
         {
-            var emisor = new Emisor
+            emisor = new Emisor
             {
                 Nombre = "SPA Thermal Daymán",
                 Slug = "dayman",
@@ -19,7 +20,10 @@ public static class DbSeeder
             };
             db.Emisores.Add(emisor);
             await db.SaveChangesAsync();
+        }
 
+        if (!await db.Usuarios.AnyAsync())
+        {
             db.Usuarios.AddRange(
                 new Usuario
                 {
@@ -42,7 +46,7 @@ public static class DbSeeder
 
         if (await db.Servicios.AnyAsync()) return;
 
-        var defaultEmisor = await db.Emisores.FirstAsync(e => e.Slug == "dayman");
+        var defaultEmisor = emisor;
 
         var servicios = new List<Servicio>
         {

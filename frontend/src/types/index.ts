@@ -52,6 +52,23 @@ export interface Emisor {
   fechaAlta: string;
 }
 
+export interface CrearEmisorPayload {
+  nombre: string;
+  slug: string;
+  ciudad?: string | null;
+  departamento?: string | null;
+  adminEmail: string;
+  adminPassword: string;
+  adminNombre: string;
+}
+
+export interface ActualizarEmisorPayload {
+  nombre: string;
+  slug: string;
+  ciudad?: string | null;
+  departamento?: string | null;
+}
+
 export interface EmisorPublico {
   id: number;
   nombre: string;

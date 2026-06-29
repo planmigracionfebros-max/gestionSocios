@@ -48,15 +48,21 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
     public async Task<ActionResult<EmisorDto>> Create(CrearEmisorDto dto)
     {
         var errors = ValidateEmisor(dto.Nombre, dto.Slug);
+        errors.AddRange(ValidateAdmin(dto));
         if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
         var slug = dto.Slug.Trim().ToLowerInvariant();
         var nombre = dto.Nombre.Trim();
+        var adminEmail = dto.AdminEmail.Trim().ToLowerInvariant();
 
         if (await db.Emisores.AnyAsync(e => e.Slug == slug))
             return BadRequest(new { mensaje = "Ya existe un emisor con ese slug", errores = new[] { "Slug duplicado" } });
         if (await db.Emisores.AnyAsync(e => e.Nombre == nombre))
             return BadRequest(new { mensaje = "Ya existe un emisor con ese nombre", errores = new[] { "Nombre duplicado" } });
+        if (await db.Usuarios.AnyAsync(u => u.Email == adminEmail))
+            return BadRequest(new { mensaje = "Ya existe un usuario con ese email", errores = new[] { "Email duplicado" } });
+
+        await using var tx = await db.Database.BeginTransactionAsync();
 
         var emisor = new Emisor
         {
@@ -68,12 +74,24 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
 
         db.Emisores.Add(emisor);
         await db.SaveChangesAsync();
+
+        db.Usuarios.Add(new Usuario
+        {
+            Email = adminEmail,
+            PasswordHash = PasswordHasher.Hash(dto.AdminPassword),
+            Nombre = dto.AdminNombre.Trim(),
+            Rol = RolUsuario.AdminEmisor,
+            EmisorId = emisor.Id,
+        });
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
+
         return CreatedAtAction(nameof(GetById), new { id = emisor.Id }, Map(emisor));
     }
 
     [Authorize(Roles = nameof(RolUsuario.SuperAdmin))]
     [HttpPut("{id}")]
-    public async Task<ActionResult<EmisorDto>> Update(int id, CrearEmisorDto dto)
+    public async Task<ActionResult<EmisorDto>> Update(int id, ActualizarEmisorDto dto)
     {
         var emisor = await db.Emisores.FindAsync(id);
         if (emisor == null) return NotFound();
@@ -116,6 +134,16 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
         if (string.IsNullOrWhiteSpace(slug)) errors.Add("El slug es obligatorio");
         else if (!SlugRegex.IsMatch(slug.Trim().ToLowerInvariant()))
             errors.Add("El slug solo puede contener letras minúsculas, números y guiones");
+        return errors;
+    }
+
+    private static List<string> ValidateAdmin(CrearEmisorDto dto)
+    {
+        var errors = new List<string>();
+        if (string.IsNullOrWhiteSpace(dto.AdminEmail)) errors.Add("El email del administrador es obligatorio");
+        if (string.IsNullOrWhiteSpace(dto.AdminPassword) || dto.AdminPassword.Length < 6)
+            errors.Add("La contraseña debe tener al menos 6 caracteres");
+        if (string.IsNullOrWhiteSpace(dto.AdminNombre)) errors.Add("El nombre del administrador es obligatorio");
         return errors;
     }
 

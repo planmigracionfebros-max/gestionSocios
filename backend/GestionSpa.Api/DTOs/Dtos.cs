@@ -87,6 +87,10 @@ public record EmisorDto(
 public record EmisorPublicoDto(int Id, string Nombre, string Slug, string? Ciudad);
 
 public record CrearEmisorDto(
+    string Nombre, string Slug, string? Ciudad, string? Departamento,
+    string AdminEmail, string AdminPassword, string AdminNombre);
+
+public record ActualizarEmisorDto(
     string Nombre, string Slug, string? Ciudad, string? Departamento);
 
 public record UsuarioDto(

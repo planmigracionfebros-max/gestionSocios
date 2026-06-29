@@ -44,8 +44,10 @@ export const api = {
     get: (id: number) => request<import('../types').Emisor>(`/emisores/${id}`),
     publico: (slug: string) =>
       request<import('../types').EmisorPublico>(`/emisores/publico/${slug}`, { skipAuth: true }),
-    create: (data: unknown) => request<import('../types').Emisor>('/emisores', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: number, data: unknown) => request<import('../types').Emisor>(`/emisores/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    create: (data: import('../types').CrearEmisorPayload) =>
+      request<import('../types').Emisor>('/emisores', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: import('../types').ActualizarEmisorPayload) =>
+      request<import('../types').Emisor>(`/emisores/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     toggleActivo: (id: number, activo: boolean) =>
       request<import('../types').Emisor>(`/emisores/${id}/activo`, { method: 'PATCH', body: JSON.stringify(activo) }),
   },

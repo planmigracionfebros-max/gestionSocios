@@ -5,7 +5,16 @@ import type { Emisor } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit2 } from 'lucide-react';
 
-const emptyForm = { nombre: '', slug: '', ciudad: '', departamento: '' };
+const emptyForm = {
+  nombre: '',
+  slug: '',
+  ciudad: '',
+  departamento: '',
+  adminEmail: '',
+  adminPassword: '',
+  adminPasswordConfirm: '',
+  adminNombre: '',
+};
 
 const slugify = (s: string) => s.toLowerCase()
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -27,24 +36,52 @@ export default function EmisoresPage() {
 
   const openEdit = (e: Emisor) => {
     setEditId(e.id);
-    setForm({ nombre: e.nombre, slug: e.slug, ciudad: e.ciudad || '', departamento: e.departamento || '' });
+    setForm({
+      nombre: e.nombre,
+      slug: e.slug,
+      ciudad: e.ciudad || '',
+      departamento: e.departamento || '',
+      adminEmail: '',
+      adminPassword: '',
+      adminPasswordConfirm: '',
+      adminNombre: '',
+    });
     setErrors([]);
     setModal(true);
   };
 
   const save = async () => {
     setErrors([]);
-    if (!form.nombre.trim()) { setErrors(['El nombre es obligatorio']); return; }
-    if (!form.slug.trim()) { setErrors(['El slug es obligatorio']); return; }
+    const errs: string[] = [];
+    if (!form.nombre.trim()) errs.push('El nombre es obligatorio');
+    if (!form.slug.trim()) errs.push('El slug es obligatorio');
+    if (!editId) {
+      if (!form.adminEmail.trim()) errs.push('El email del administrador es obligatorio');
+      if (!form.adminNombre.trim()) errs.push('El nombre del administrador es obligatorio');
+      if (form.adminPassword.length < 6) errs.push('La contraseña debe tener al menos 6 caracteres');
+      if (form.adminPassword !== form.adminPasswordConfirm) errs.push('Las contraseñas no coinciden');
+    }
+    if (errs.length > 0) { setErrors(errs); return; }
+
     try {
-      const payload = {
-        nombre: form.nombre.trim(),
-        slug: form.slug.trim().toLowerCase(),
-        ciudad: form.ciudad.trim() || null,
-        departamento: form.departamento.trim() || null,
-      };
-      if (editId) await api.emisores.update(editId, payload);
-      else await api.emisores.create(payload);
+      if (editId) {
+        await api.emisores.update(editId, {
+          nombre: form.nombre.trim(),
+          slug: form.slug.trim().toLowerCase(),
+          ciudad: form.ciudad.trim() || null,
+          departamento: form.departamento.trim() || null,
+        });
+      } else {
+        await api.emisores.create({
+          nombre: form.nombre.trim(),
+          slug: form.slug.trim().toLowerCase(),
+          ciudad: form.ciudad.trim() || null,
+          departamento: form.departamento.trim() || null,
+          adminEmail: form.adminEmail.trim().toLowerCase(),
+          adminPassword: form.adminPassword,
+          adminNombre: form.adminNombre.trim(),
+        });
+      }
       setModal(false);
       load();
     } catch (e) {
@@ -100,8 +137,17 @@ export default function EmisoresPage() {
             <h3>{editId ? 'Editar Emisor' : 'Nuevo Emisor'}</h3>
             {errors.length > 0 && <div className="alert alert-error"><ul style={{ margin: 0, paddingLeft: '1.2rem' }}>{errors.map((err, i) => <li key={i}>{err}</li>)}</ul></div>}
             <div className="form-group">
-              <label>Nombre *</label>
-              <input className="form-control" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value, slug: editId ? form.slug : slugify(e.target.value) })} />
+              <label>Nombre del spa *</label>
+              <input
+                className="form-control"
+                value={form.nombre}
+                onChange={e => setForm({
+                  ...form,
+                  nombre: e.target.value,
+                  slug: editId ? form.slug : slugify(e.target.value),
+                  adminNombre: editId ? form.adminNombre : (form.adminNombre || `Administrador ${e.target.value}`.trim()),
+                })}
+              />
             </div>
             <div className="form-group">
               <label>Slug (URL kiosk) *</label>
@@ -117,6 +163,58 @@ export default function EmisoresPage() {
                 <input className="form-control" value={form.departamento} onChange={e => setForm({ ...form, departamento: e.target.value })} />
               </div>
             </div>
+
+            {!editId && (
+              <>
+                <hr style={{ margin: '1.25rem 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+                <p style={{ margin: '0 0 1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  Datos de acceso del administrador de este emisor. Con este usuario podrá gestionar sus socios de forma independiente.
+                </p>
+                <div className="form-group">
+                  <label>Email del administrador *</label>
+                  <input
+                    type="email"
+                    className="form-control"
+                    value={form.adminEmail}
+                    onChange={e => setForm({ ...form, adminEmail: e.target.value })}
+                    placeholder="admin@mi-spa.com"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Nombre del administrador *</label>
+                  <input
+                    className="form-control"
+                    value={form.adminNombre}
+                    onChange={e => setForm({ ...form, adminNombre: e.target.value })}
+                    placeholder="Juan Pérez"
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Contraseña *</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={form.adminPassword}
+                      onChange={e => setForm({ ...form, adminPassword: e.target.value })}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Confirmar contraseña *</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={form.adminPasswordConfirm}
+                      onChange={e => setForm({ ...form, adminPasswordConfirm: e.target.value })}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={() => setModal(false)}>Cancelar</button>
               <button className="btn btn-primary" onClick={save}>Guardar</button>

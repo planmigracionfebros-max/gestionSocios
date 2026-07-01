@@ -209,6 +209,15 @@ export interface InformeSociosActivos {
   socios: InformeSocioActivo[];
 }
 
+export interface ResultadoSorteo {
+  socioId: number;
+  numeroSocio: string;
+  nombreCompleto: string;
+  cedula: string;
+  totalParticipantes: number;
+  fechaSorteo: string;
+}
+
 export interface Ingreso {
   id: number;
   socioId: number;

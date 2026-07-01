@@ -196,28 +196,78 @@ public class InformesController(AppDbContext db, ITenantContext tenant) : Contro
         var m = mes ?? mesActual;
         var a = anio ?? anioActual;
         var informe = await BuildInformeSociosActivosAsync(m, a);
+        return BuildSociosCsvFile(informe.Socios, $"socios-activos-{m:D2}-{a}", includeCuotaMes: true);
+    }
 
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Nº Socio;Nombre;Apellido;Tipo documento;Documento;Teléfono;Email;Familia;Cuota mensual;Medio de pago;Fecha alta;Vencimiento;Estado cuota mes;Saldo cuota mes");
-        foreach (var s in informe.Socios)
+    [HttpGet("socios/export")]
+    public async Task<IActionResult> ExportSociosPorRango(
+        [FromQuery] string tipo,
+        [FromQuery] DateTime? desde,
+        [FromQuery] DateTime? hasta,
+        [FromQuery] int? mes,
+        [FromQuery] int? anio)
+    {
+        if (string.IsNullOrWhiteSpace(tipo) || (tipo != "activos" && tipo != "inactivos"))
+            return BadRequest(new { mensaje = "El tipo debe ser 'activos' o 'inactivos'" });
+
+        if (!desde.HasValue || !hasta.HasValue)
+            return BadRequest(new { mensaje = "Debés indicar fecha desde y hasta" });
+
+        if (desde.Value.Date > hasta.Value.Date)
+            return BadRequest(new { mensaje = "La fecha desde no puede ser posterior a la hasta" });
+
+        var (mesActual, anioActual) = UruguayTime.MesAnioActual();
+        var m = mes ?? mesActual;
+        var a = anio ?? anioActual;
+
+        var estado = tipo == "activos" ? EstadoSocio.Activo : EstadoSocio.Inactivo;
+        var socios = await GetSociosPorEstadoYRangoAsync(estado, desde, hasta);
+
+        Dictionary<int, CuotaMensual> cuotas = new();
+        if (tipo == "activos")
         {
-            var tipoDoc = s.TipoIdentificacion == TipoIdentificacionSocio.Cedula ? "Cédula" : "Otro";
-            var estadoCuota = s.SinCuotaMes ? "Sin cuota" : (s.EstadoCuotaMes?.ToString() ?? "—");
-            sb.AppendLine(string.Join(';', new[]
-            {
-                CsvCell(s.NumeroSocio), CsvCell(s.Nombre), CsvCell(s.Apellido), CsvCell(tipoDoc),
-                CsvCell(s.Cedula), CsvCell(s.Telefono), CsvCell(s.Email), CsvCell(s.FamiliaNombre),
-                s.CuotaMensual.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
-                CsvCell(s.MedioPago.ToString()), CsvCell(s.FechaAlta.ToString("dd/MM/yyyy")),
-                CsvCell(s.FechaVencimiento?.ToString("dd/MM/yyyy")), CsvCell(estadoCuota),
-                s.SaldoCuotaMes.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
-            }));
+            cuotas = await db.CuotasMensuales.ForTenant(tenant)
+                .Where(c => c.Mes == m && c.Anio == a)
+                .ToDictionaryAsync(c => c.SocioId);
         }
 
-        var bytes = System.Text.Encoding.UTF8.GetPreamble()
-            .Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
-        var fileName = $"socios-activos-{m:D2}-{a}.csv";
-        return File(bytes, "text/csv; charset=utf-8", fileName);
+        var items = socios.Select(s =>
+        {
+            cuotas.TryGetValue(s.Id, out var cuota);
+            var sinCuota = cuota == null;
+            var saldo = cuota != null ? cuota.Total - cuota.MontoPagado : 0m;
+            return new InformeSocioActivoDto(
+                s.Id, s.NumeroSocio, s.Nombre, s.Apellido, s.Cedula, s.TipoIdentificacion,
+                s.Telefono, s.Email, s.Familia?.Nombre, s.CuotaMensual, s.MedioPago,
+                s.FechaAlta, s.FechaVencimiento,
+                cuota?.EstadoPago, sinCuota, saldo);
+        }).ToList();
+
+        var desdeStr = desde.Value.ToString("yyyy-MM-dd");
+        var hastaStr = hasta.Value.ToString("yyyy-MM-dd");
+        var fileName = $"socios-{tipo}-{desdeStr}_{hastaStr}";
+        return BuildSociosCsvFile(items, fileName, includeCuotaMes: tipo == "activos");
+    }
+
+    [HttpPost("sorteo")]
+    public async Task<ActionResult<ResultadoSorteoDto>> GenerarSorteo()
+    {
+        var activos = await db.Socios.ForTenant(tenant)
+            .Where(s => s.Estado == EstadoSocio.Activo)
+            .OrderBy(s => s.Id)
+            .ToListAsync();
+
+        if (activos.Count == 0)
+            return BadRequest(new { mensaje = "No hay socios activos para realizar el sorteo" });
+
+        var ganador = activos[Random.Shared.Next(activos.Count)];
+        return new ResultadoSorteoDto(
+            ganador.Id,
+            ganador.NumeroSocio,
+            $"{ganador.Nombre} {ganador.Apellido}",
+            ganador.Cedula,
+            activos.Count,
+            DateTime.UtcNow);
     }
 
     private async Task<InformeSociosActivosDto> BuildInformeSociosActivosAsync(int m, int a)
@@ -254,6 +304,59 @@ public class InformesController(AppDbContext db, ITenantContext tenant) : Contro
             items.Sum(i => i.CuotaMensual));
 
         return new InformeSociosActivosDto(m, a, resumen, items);
+    }
+
+    private async Task<List<Socio>> GetSociosPorEstadoYRangoAsync(
+        EstadoSocio estado, DateTime? desde, DateTime? hasta)
+    {
+        var query = db.Socios.ForTenant(tenant).Include(s => s.Familia)
+            .Where(s => s.Estado == estado);
+
+        if (desde.HasValue)
+        {
+            var inicio = UruguayTime.InicioDiaUtc(desde.Value.Date);
+            query = query.Where(s => s.FechaAlta >= inicio);
+        }
+        if (hasta.HasValue)
+        {
+            var fin = UruguayTime.FinDiaUtc(hasta.Value.Date);
+            query = query.Where(s => s.FechaAlta < fin);
+        }
+
+        return await query.OrderBy(s => s.Apellido).ThenBy(s => s.Nombre).ToListAsync();
+    }
+
+    private IActionResult BuildSociosCsvFile(List<InformeSocioActivoDto> socios, string fileBaseName, bool includeCuotaMes)
+    {
+        var sb = new System.Text.StringBuilder();
+        if (includeCuotaMes)
+            sb.AppendLine("Nº Socio;Nombre;Apellido;Tipo documento;Documento;Teléfono;Email;Familia;Cuota mensual;Medio de pago;Fecha alta;Vencimiento;Estado cuota mes;Saldo cuota mes");
+        else
+            sb.AppendLine("Nº Socio;Nombre;Apellido;Tipo documento;Documento;Teléfono;Email;Familia;Cuota mensual;Medio de pago;Fecha alta;Vencimiento");
+
+        foreach (var s in socios)
+        {
+            var tipoDoc = s.TipoIdentificacion == TipoIdentificacionSocio.Cedula ? "Cédula" : "Otro";
+            var cells = new List<string>
+            {
+                CsvCell(s.NumeroSocio), CsvCell(s.Nombre), CsvCell(s.Apellido), CsvCell(tipoDoc),
+                CsvCell(s.Cedula), CsvCell(s.Telefono), CsvCell(s.Email), CsvCell(s.FamiliaNombre),
+                s.CuotaMensual.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+                CsvCell(s.MedioPago.ToString()), CsvCell(s.FechaAlta.ToString("dd/MM/yyyy")),
+                CsvCell(s.FechaVencimiento?.ToString("dd/MM/yyyy")),
+            };
+            if (includeCuotaMes)
+            {
+                var estadoCuota = s.SinCuotaMes ? "Sin cuota" : (s.EstadoCuotaMes?.ToString() ?? "—");
+                cells.Add(CsvCell(estadoCuota));
+                cells.Add(s.SaldoCuotaMes.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+            }
+            sb.AppendLine(string.Join(';', cells));
+        }
+
+        var bytes = System.Text.Encoding.UTF8.GetPreamble()
+            .Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        return File(bytes, "text/csv; charset=utf-8", $"{fileBaseName}.csv");
     }
 
     private static string CsvCell(string? value)

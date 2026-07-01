@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import type { InformeResumen, InformeCobranza, InformeSociosActivos, Ingreso, EstadoPago } from '../types';
-import { MESES, formatUYU, formatHora, formatFecha, labelMetodoPago } from '../types';
-import { Download } from 'lucide-react';
+import type { InformeResumen, InformeCobranza, InformeSociosActivos, Ingreso, EstadoPago, ResultadoSorteo } from '../types';
+import { MESES, formatUYU, formatHora, formatFecha, labelMetodoPago, fechaHoyLocal } from '../types';
+import { Download, Gift } from 'lucide-react';
+
+const inicioMes = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+};
 
 const pagoBadge = (estado: EstadoPago | null | undefined, sinCuota?: boolean) => {
   if (sinCuota) return <span className="badge badge-neutral">Sin cuota</span>;
@@ -25,6 +30,10 @@ export default function InformesPage() {
   const [serviciosTop, setServiciosTop] = useState<{ nombre: string; cantidad: number; total: number }[]>([]);
   const [sociosActivos, setSociosActivos] = useState<InformeSociosActivos | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportDesde, setExportDesde] = useState(inicioMes);
+  const [exportHasta, setExportHasta] = useState(fechaHoyLocal);
+  const [ganador, setGanador] = useState<ResultadoSorteo | null>(null);
+  const [sorteando, setSorteando] = useState(false);
   const [fechaIngresos, setFechaIngresos] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
@@ -56,6 +65,32 @@ export default function InformesPage() {
       setError(e instanceof Error ? e.message : 'Error al exportar');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const exportarPorRango = async (tipo: 'activos' | 'inactivos') => {
+    if (!exportDesde || !exportHasta) { setError('Indicá fecha desde y hasta'); return; }
+    if (exportDesde > exportHasta) { setError('La fecha desde no puede ser posterior a la hasta'); return; }
+    setExporting(true);
+    setError('');
+    try {
+      await api.informes.exportSociosRango(tipo, exportDesde, exportHasta, mes, anio);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al exportar');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const generarSorteo = async () => {
+    setSorteando(true);
+    setError('');
+    try {
+      setGanador(await api.informes.sorteo());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al generar sorteo');
+    } finally {
+      setSorteando(false);
     }
   };
 
@@ -234,6 +269,52 @@ export default function InformesPage() {
 
       {!loading && !error && tab === 'sociosActivos' && sociosActivos && (
         <>
+          <div className="card" style={{ marginBottom: '1.25rem' }}>
+            <h3 style={{ marginBottom: '0.75rem', color: 'var(--color-primary-dark)' }}>Exportar por rango de fechas</h3>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
+              Filtra socios por <strong>fecha de alta</strong> en el período indicado.
+            </p>
+            <div className="form-row" style={{ marginBottom: '1rem' }}>
+              <div className="form-group">
+                <label>Desde</label>
+                <input type="date" className="form-control" value={exportDesde} onChange={e => setExportDesde(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Hasta</label>
+                <input type="date" className="form-control" value={exportHasta} min={exportDesde} onChange={e => setExportHasta(e.target.value)} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button className="btn btn-secondary" onClick={() => exportarPorRango('activos')} disabled={exporting}>
+                <Download size={16} /> {exporting ? 'Exportando...' : 'Exportar activos'}
+              </button>
+              <button className="btn btn-secondary" onClick={() => exportarPorRango('inactivos')} disabled={exporting}>
+                <Download size={16} /> {exporting ? 'Exportando...' : 'Exportar inactivos'}
+              </button>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: '1.25rem' }}>
+            <h3 style={{ marginBottom: '0.75rem', color: 'var(--color-primary-dark)' }}>Sorteo entre socios activos</h3>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
+              Se elige al azar un ganador entre los <strong>{sociosActivos.resumen.totalActivos}</strong> socios activos actuales.
+            </p>
+            <button className="btn btn-primary" onClick={generarSorteo} disabled={sorteando || sociosActivos.resumen.totalActivos === 0}>
+              <Gift size={16} /> {sorteando ? 'Sorteando...' : 'Generar sorteo'}
+            </button>
+            {ganador && (
+              <div className="alert alert-success" style={{ marginTop: '1rem' }}>
+                <strong>¡Ganador del sorteo!</strong>
+                <div style={{ marginTop: '0.5rem', fontSize: '1.1rem' }}>
+                  {ganador.nombreCompleto} <span style={{ color: 'var(--color-text-muted)' }}>(Nº {ganador.numeroSocio})</span>
+                </div>
+                <div style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
+                  Documento: {ganador.cedula} · Participantes: {ganador.totalParticipantes}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="card-grid">
             <div className="stat-card">
               <div className="label">Total activos</div>

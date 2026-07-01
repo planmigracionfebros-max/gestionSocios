@@ -136,3 +136,7 @@ public record InformeSocioActivoDto(
 
 public record InformeSociosActivosDto(
     int Mes, int Anio, InformeSociosActivosResumenDto Resumen, List<InformeSocioActivoDto> Socios);
+
+public record ResultadoSorteoDto(
+    int SocioId, string NumeroSocio, string NombreCompleto, string Cedula,
+    int TotalParticipantes, DateTime FechaSorteo);

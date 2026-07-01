@@ -188,5 +188,12 @@ export const api = {
       if (anio) p.set('anio', String(anio));
       return downloadFile(`/informes/socios-activos/export?${p}`, 'socios-activos.csv');
     },
+    exportSociosRango: (tipo: 'activos' | 'inactivos', desde: string, hasta: string, mes?: number, anio?: number) => {
+      const p = new URLSearchParams({ tipo, desde, hasta });
+      if (mes) p.set('mes', String(mes));
+      if (anio) p.set('anio', String(anio));
+      return downloadFile(`/informes/socios/export?${p}`, `socios-${tipo}.csv`);
+    },
+    sorteo: () => request<import('../types').ResultadoSorteo>('/informes/sorteo', { method: 'POST' }),
   },
 };

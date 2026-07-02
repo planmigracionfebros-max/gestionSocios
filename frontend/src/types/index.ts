@@ -221,6 +221,44 @@ export interface ResultadoSorteo {
   fechaSorteo: string;
 }
 
+export interface PorteroConfig {
+  habilitado: boolean;
+  apiUrl: string;
+  apiKey: string;
+  webhookSecret: string | null;
+  deviceSn: string;
+  sincronizarAutomatico: boolean;
+  webhookUrl: string;
+  fechaActualizacion: string | null;
+}
+
+export interface GuardarPorteroConfig {
+  habilitado: boolean;
+  apiUrl: string;
+  apiKey: string;
+  webhookSecret?: string | null;
+  deviceSn: string;
+  sincronizarAutomatico: boolean;
+}
+
+export interface PorteroPruebaConexion {
+  ok: boolean;
+  mensaje: string;
+  stats?: unknown;
+}
+
+export interface PorteroSincronizacion {
+  total: number;
+  exitosos: number;
+  fallidos: number;
+  errores: string[];
+}
+
+export interface PorteroAccion {
+  mensaje: string;
+  detalle?: unknown;
+}
+
 export interface Ingreso {
   id: number;
   socioId: number;

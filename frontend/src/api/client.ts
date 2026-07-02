@@ -196,4 +196,13 @@ export const api = {
     },
     sorteo: () => request<import('../types').ResultadoSorteo>('/informes/sorteo', { method: 'POST' }),
   },
+  portero: {
+    getConfig: () => request<import('../types').PorteroConfig>('/portero/config'),
+    saveConfig: (data: import('../types').GuardarPorteroConfig) =>
+      request<import('../types').PorteroConfig>('/portero/config', { method: 'PUT', body: JSON.stringify(data) }),
+    probar: (data?: import('../types').GuardarPorteroConfig) =>
+      request<import('../types').PorteroPruebaConexion>('/portero/probar', { method: 'POST', body: JSON.stringify(data ?? null) }),
+    sincronizar: () => request<import('../types').PorteroSincronizacion>('/portero/sincronizar', { method: 'POST' }),
+    abrirPuerta: () => request<import('../types').PorteroAccion>('/portero/abrir-puerta', { method: 'POST' }),
+  },
 };

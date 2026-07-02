@@ -140,3 +140,20 @@ public record InformeSociosActivosDto(
 public record ResultadoSorteoDto(
     int SocioId, string NumeroSocio, string NombreCompleto, string Cedula,
     int TotalParticipantes, DateTime FechaSorteo);
+
+public record PorteroConfigDto(
+    bool Habilitado, string ApiUrl, string ApiKey, string? WebhookSecret,
+    string DeviceSn, bool SincronizarAutomatico, string WebhookUrl, DateTime? FechaActualizacion);
+
+public record GuardarPorteroConfigDto(
+    bool Habilitado, string ApiUrl, string ApiKey, string? WebhookSecret,
+    string DeviceSn, bool SincronizarAutomatico);
+
+public record PorteroPruebaConexionDto(
+    bool Ok, string Mensaje, object? Stats);
+
+public record PorteroSincronizacionDto(
+    int Total, int Exitosos, int Fallidos, List<string> Errores);
+
+public record PorteroAccionDto(
+    string Mensaje, object? Detalle);

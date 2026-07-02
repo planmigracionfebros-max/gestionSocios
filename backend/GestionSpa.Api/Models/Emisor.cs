@@ -15,4 +15,5 @@ public class Emisor
     public ICollection<Socio> Socios { get; set; } = [];
     public ICollection<Cliente> Clientes { get; set; } = [];
     public ICollection<Servicio> Servicios { get; set; } = [];
+    public EmisorPorteroConfig? PorteroConfig { get; set; }
 }

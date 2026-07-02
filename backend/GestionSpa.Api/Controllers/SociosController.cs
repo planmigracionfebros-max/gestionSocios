@@ -11,7 +11,11 @@ namespace GestionSpa.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class SociosController(AppDbContext db, CuotaService cuotaService, ITenantContext tenant) : ControllerBase
+public class SociosController(
+    AppDbContext db,
+    CuotaService cuotaService,
+    ITenantContext tenant,
+    IPorteroIntegrationService portero) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<SocioDto>>> GetAll([FromQuery] string? buscar, [FromQuery] EstadoSocio? estado)
@@ -88,6 +92,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
         {
             var (mes, anio) = UruguayTime.MesAnioActual();
             await cuotaService.ObtenerOCrearCuotaAsync(socio.Id, mes, anio);
+            await portero.TrySyncSocioAsync(socio);
         }
 
         return CreatedAtAction(nameof(GetById), new { id = socio.Id }, Map(socio));
@@ -144,6 +149,12 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
         }
 
         await db.Entry(socio).Reference(s => s.Familia).LoadAsync();
+
+        if (socio.Estado == EstadoSocio.Activo)
+            await portero.TrySyncSocioAsync(socio);
+        else
+            await portero.TryRemoveSocioAsync(socio);
+
         return Map(socio);
     }
 
@@ -154,6 +165,12 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
         if (socio == null) return NotFound();
         socio.Estado = estado;
         await db.SaveChangesAsync();
+
+        if (estado == EstadoSocio.Activo)
+            await portero.TrySyncSocioAsync(socio);
+        else
+            await portero.TryRemoveSocioAsync(socio);
+
         return Map(socio);
     }
 
@@ -164,6 +181,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
         if (socio == null) return NotFound();
         socio.Estado = EstadoSocio.Inactivo;
         await db.SaveChangesAsync();
+        await portero.TryRemoveSocioAsync(socio);
         return NoContent();
     }
 

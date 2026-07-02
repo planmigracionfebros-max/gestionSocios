@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, UserPlus, Sparkles, Receipt,
-  BarChart3, DoorOpen, CreditCard, Menu, ChevronsLeft, Home, Building2, LogOut
+  BarChart3, DoorOpen, CreditCard, Menu, ChevronsLeft, Home, Building2, LogOut, Settings
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { APP_NAME } from '../config/branding';
@@ -28,6 +28,7 @@ export default function Layout() {
     { to: '/cargos', icon: Receipt, label: 'Cargos' },
     { to: '/cuotas', icon: CreditCard, label: 'Cuotas' },
     { to: '/informes', icon: BarChart3, label: 'Informes' },
+    ...(!isSuperAdmin ? [{ to: '/portero', icon: Settings, label: 'Config. portero' }] : []),
   ];
 
   useEffect(() => {

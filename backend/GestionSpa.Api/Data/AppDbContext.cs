@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<CuotaMensual> CuotasMensuales => Set<CuotaMensual>();
     public DbSet<Pago> Pagos => Set<Pago>();
     public DbSet<Ingreso> Ingresos => Set<Ingreso>();
+    public DbSet<EmisorPorteroConfig> EmisorPorteroConfigs => Set<EmisorPorteroConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -91,6 +92,12 @@ public class AppDbContext : DbContext
         {
             e.HasOne(i => i.Emisor).WithMany().HasForeignKey(i => i.EmisorId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(i => i.Socio).WithMany(s => s.Ingresos).HasForeignKey(i => i.SocioId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EmisorPorteroConfig>(e =>
+        {
+            e.HasKey(x => x.EmisorId);
+            e.HasOne(x => x.Emisor).WithOne(em => em.PorteroConfig).HasForeignKey<EmisorPorteroConfig>(x => x.EmisorId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

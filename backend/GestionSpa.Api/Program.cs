@@ -42,6 +42,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 builder.Services.AddScoped<CuotaService>();
 builder.Services.AddScoped<IngresoAccesoService>();
+builder.Services.AddScoped<IPorteroIntegrationService, PorteroIntegrationService>();
+builder.Services.AddHttpClient("Portero", c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddSingleton<JwtTokenService>();
 
 var jwtService = new JwtTokenService(builder.Configuration);

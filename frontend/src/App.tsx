@@ -13,6 +13,7 @@ import CargosPage from './pages/CargosPage';
 import CuotasPage from './pages/CuotasPage';
 import InformesPage from './pages/InformesPage';
 import IngresoPage from './pages/IngresoPage';
+import ConfiguracionPorteroPage from './pages/ConfiguracionPorteroPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/cargos" element={<CargosPage />} />
             <Route path="/cuotas" element={<CuotasPage />} />
             <Route path="/informes" element={<InformesPage />} />
+            <Route path="/portero" element={<ConfiguracionPorteroPage />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

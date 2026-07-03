@@ -10,6 +10,7 @@ public interface IEmisorBackupService
 {
     Task<EmisorBackupPackage> ExportAsync(int emisorId);
     Task<EmisorImportResultDto> ImportAsync(int emisorId, EmisorBackupPackage backup);
+    Task ImportEmisorContentAsync(int emisorId, EmisorBackupPackage backup);
 }
 
 public class EmisorBackupService(AppDbContext db) : IEmisorBackupService
@@ -213,7 +214,31 @@ public class EmisorBackupService(AppDbContext db) : IEmisorBackupService
             }
 
             await db.SaveChangesAsync();
+            await ImportEmisorContentAsync(emisorId, backup);
 
+            await tx.CommitAsync();
+
+            return new EmisorImportResultDto(
+                "Datos importados correctamente",
+                backup.Usuarios.Count,
+                backup.Familias.Count,
+                backup.Socios.Count,
+                backup.Clientes.Count,
+                backup.Servicios.Count,
+                backup.Cuotas.Count,
+                backup.Cargos.Count,
+                backup.Pagos.Count,
+                backup.Ingresos.Count);
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task ImportEmisorContentAsync(int emisorId, EmisorBackupPackage backup)
+    {
             foreach (var u in backup.Usuarios.Where(u => u.Rol != nameof(RolUsuario.SuperAdmin)))
             {
                 db.Usuarios.Add(new Usuario
@@ -389,26 +414,6 @@ public class EmisorBackupService(AppDbContext db) : IEmisorBackupService
                 });
             }
             await db.SaveChangesAsync();
-
-            await tx.CommitAsync();
-
-            return new EmisorImportResultDto(
-                "Datos importados correctamente",
-                backup.Usuarios.Count,
-                backup.Familias.Count,
-                backup.Socios.Count,
-                backup.Clientes.Count,
-                backup.Servicios.Count,
-                backup.Cuotas.Count,
-                backup.Cargos.Count,
-                backup.Pagos.Count,
-                backup.Ingresos.Count);
-        }
-        catch
-        {
-            await tx.RollbackAsync();
-            throw;
-        }
     }
 
     private async Task ClearEmisorDataAsync(int emisorId)

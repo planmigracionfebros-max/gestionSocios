@@ -44,6 +44,7 @@ builder.Services.AddScoped<CuotaService>();
 builder.Services.AddScoped<IngresoAccesoService>();
 builder.Services.AddScoped<IPorteroIntegrationService, PorteroIntegrationService>();
 builder.Services.AddScoped<IEmisorBackupService, EmisorBackupService>();
+builder.Services.AddScoped<IPlatformBackupService, PlatformBackupService>();
 builder.Services.AddHttpClient("Portero", c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddSingleton<JwtTokenService>();
 

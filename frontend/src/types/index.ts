@@ -287,6 +287,29 @@ export interface EmisorImportResult {
   ingresos: number;
 }
 
+export interface PlatformBackupResumen {
+  exportedAt: string;
+  emisores: number;
+  superAdmins: number;
+  totalSocios: number;
+  totalCuotas: number;
+  totalCargos: number;
+  totalPagos: number;
+  totalIngresos: number;
+  detalle: { slug: string; nombre: string; socios: number; usuarios: number }[];
+}
+
+export interface PlatformImportResult {
+  mensaje: string;
+  emisores: number;
+  superAdmins: number;
+  socios: number;
+  cuotas: number;
+  cargos: number;
+  pagos: number;
+  ingresos: number;
+}
+
 export interface Ingreso {
   id: number;
   socioId: number;

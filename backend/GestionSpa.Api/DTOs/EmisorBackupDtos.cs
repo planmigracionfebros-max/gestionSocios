@@ -166,3 +166,22 @@ public record EmisorBackupResumenDto(
 public record EmisorImportResultDto(
     string Mensaje, int Usuarios, int Familias, int Socios, int Clientes,
     int Servicios, int Cuotas, int Cargos, int Pagos, int Ingresos);
+
+public class PlatformBackupPackage
+{
+    public int Version { get; set; } = 2;
+    public DateTime ExportedAt { get; set; }
+    public List<EmisorBackupUsuario> SuperAdmins { get; set; } = [];
+    public List<EmisorBackupPackage> Emisores { get; set; } = [];
+}
+
+public record PlatformBackupResumenDto(
+    DateTime ExportedAt, int Emisores, int SuperAdmins, int TotalSocios,
+    int TotalCuotas, int TotalCargos, int TotalPagos, int TotalIngresos,
+    List<PlatformEmisorResumenDto> Detalle);
+
+public record PlatformEmisorResumenDto(string Slug, string Nombre, int Socios, int Usuarios);
+
+public record PlatformImportResultDto(
+    string Mensaje, int Emisores, int SuperAdmins, int Socios, int Cuotas,
+    int Cargos, int Pagos, int Ingresos);

@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Emisor } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit2 } from 'lucide-react';
+import { Plus, Edit2, Download, Upload, AlertTriangle } from 'lucide-react';
+import type { PlatformBackupResumen, PlatformImportResult } from '../types';
 
 const emptyForm = {
   nombre: '',
@@ -28,9 +29,18 @@ export default function EmisoresPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<string[]>([]);
+  const [exportandoPlataforma, setExportandoPlataforma] = useState(false);
+  const [importandoPlataforma, setImportandoPlataforma] = useState(false);
+  const [resumenPlataforma, setResumenPlataforma] = useState<PlatformBackupResumen | null>(null);
+  const [archivoPlataforma, setArchivoPlataforma] = useState<File | null>(null);
+  const [confirmarPlataforma, setConfirmarPlataforma] = useState(false);
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [resultadoPlataforma, setResultadoPlataforma] = useState<PlatformImportResult | null>(null);
 
   const load = () => api.emisores.list().then(setEmisores).catch(console.error);
-  useEffect(() => { load(); }, []);
+  const cargarResumenPlataforma = () => api.adminBackup.resumenPlatform().then(setResumenPlataforma).catch(() => setResumenPlataforma(null));
+  useEffect(() => { load(); cargarResumenPlataforma(); }, []);
 
   const openNew = () => { setEditId(null); setForm(emptyForm); setErrors([]); setModal(true); };
 
@@ -94,11 +104,105 @@ export default function EmisoresPage() {
     load();
   };
 
+  const exportarPlataforma = async () => {
+    setExportandoPlataforma(true);
+    setBackupError(null);
+    try {
+      await api.adminBackup.exportPlatform();
+      setBackupMsg('Respaldo de plataforma exportado correctamente');
+    } catch (e) {
+      setBackupError(e instanceof Error ? e.message : 'Error al exportar');
+    } finally {
+      setExportandoPlataforma(false);
+    }
+  };
+
+  const importarPlataforma = async () => {
+    if (!archivoPlataforma) { setBackupError('Seleccioná un archivo JSON'); return; }
+    if (!confirmarPlataforma) { setBackupError('Debés confirmar que querés reemplazar toda la plataforma'); return; }
+    setImportandoPlataforma(true);
+    setBackupError(null);
+    setBackupMsg(null);
+    setResultadoPlataforma(null);
+    try {
+      const result = await api.adminBackup.importPlatform(archivoPlataforma);
+      setResultadoPlataforma(result);
+      setBackupMsg(result.mensaje);
+      setArchivoPlataforma(null);
+      setConfirmarPlataforma(false);
+      load();
+      cargarResumenPlataforma();
+    } catch (e) {
+      setBackupError(e instanceof Error ? e.message : 'Error al importar');
+    } finally {
+      setImportandoPlataforma(false);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
         <h2>Emisores</h2>
         <p>Administrá las empresas que usan el sistema de forma independiente</p>
+      </div>
+
+      {backupMsg && <div className="alert alert-success">{backupMsg}</div>}
+      {backupError && <div className="alert alert-error">{backupError}</div>}
+
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <h3>Respaldo de plataforma completa</h3>
+        <p className="text-muted" style={{ marginBottom: '1rem' }}>
+          Exportá o importá <strong>todas las empresas</strong>, usuarios (incluidos SuperAdmin), socios, cuotas, cargos, pagos e ingresos.
+          Ideal para clonar el servidor en otro entorno.
+        </p>
+
+        {resumenPlataforma && (
+          <div style={{ marginBottom: '1rem', fontSize: '0.9rem', lineHeight: 1.7 }}>
+            <strong>{resumenPlataforma.emisores}</strong> emisor(es) · <strong>{resumenPlataforma.superAdmins}</strong> SuperAdmin(s) ·{' '}
+            <strong>{resumenPlataforma.totalSocios}</strong> socios · <strong>{resumenPlataforma.totalCuotas}</strong> cuotas
+            {resumenPlataforma.detalle.length > 0 && (
+              <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
+                {resumenPlataforma.detalle.map(d => (
+                  <li key={d.slug}><code>{d.slug}</code> — {d.nombre}: {d.socios} socios, {d.usuarios} usuarios</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <button type="button" className="btn btn-primary" onClick={exportarPlataforma} disabled={exportandoPlataforma} style={{ marginBottom: '1.5rem' }}>
+          <Download size={16} /> {exportandoPlataforma ? 'Exportando...' : 'Exportar plataforma completa'}
+        </button>
+
+        <hr style={{ margin: '1rem 0', border: 'none', borderTop: '1px solid var(--border, #e0e0e0)' }} />
+
+        <h4 style={{ marginTop: 0 }}>Importar plataforma completa</h4>
+        <div className="alert alert-error" style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+          <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+          <span>Esto <strong>borra y reemplaza todo</strong> el servidor: todas las empresas, usuarios y datos. Las contraseñas se restauran desde el hash del respaldo.</span>
+        </div>
+
+        <div className="form-group" style={{ marginTop: '1rem' }}>
+          <label>Archivo JSON de plataforma</label>
+          <input type="file" accept=".json,application/json" onChange={e => { setArchivoPlataforma(e.target.files?.[0] ?? null); setResultadoPlataforma(null); }} />
+        </div>
+
+        <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: '0.75rem' }}>
+          <input type="checkbox" checked={confirmarPlataforma} onChange={e => setConfirmarPlataforma(e.target.checked)} />
+          Confirmo que quiero reemplazar toda la plataforma con este respaldo
+        </label>
+
+        <div style={{ marginTop: '1rem' }}>
+          <button type="button" className="btn btn-secondary" onClick={importarPlataforma} disabled={importandoPlataforma || !archivoPlataforma}>
+            <Upload size={16} /> {importandoPlataforma ? 'Importando...' : 'Importar plataforma completa'}
+          </button>
+        </div>
+
+        {resultadoPlataforma && (
+          <div className="alert alert-success" style={{ marginTop: '1rem' }}>
+            {resultadoPlataforma.emisores} emisor(es), {resultadoPlataforma.superAdmins} SuperAdmin(s), {resultadoPlataforma.socios} socios, {resultadoPlataforma.cuotas} cuotas importados.
+          </div>
+        )}
       </div>
 
       <div className="toolbar">

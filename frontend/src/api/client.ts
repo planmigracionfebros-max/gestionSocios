@@ -232,4 +232,9 @@ export const api = {
     resumenBackup: () => request<import('../types').EmisorBackupResumen>('/configuracion/export/resumen'),
     importBackup: (file: File) => uploadFile('/configuracion/import', file) as Promise<import('../types').EmisorImportResult>,
   },
+  adminBackup: {
+    exportPlatform: () => downloadFile('/admin/backup/export', 'gestionspa-platform-backup.json'),
+    resumenPlatform: () => request<import('../types').PlatformBackupResumen>('/admin/backup/resumen'),
+    importPlatform: (file: File) => uploadFile('/admin/backup/import', file) as Promise<import('../types').PlatformImportResult>,
+  },
 };

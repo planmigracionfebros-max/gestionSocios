@@ -239,181 +239,237 @@ public class EmisorBackupService(AppDbContext db) : IEmisorBackupService
 
     public async Task ImportEmisorContentAsync(int emisorId, EmisorBackupPackage backup)
     {
-            foreach (var u in backup.Usuarios.Where(u => u.Rol != nameof(RolUsuario.SuperAdmin)))
+        var emailsVistos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var u in backup.Usuarios.Where(u => u.Rol != nameof(RolUsuario.SuperAdmin)))
+        {
+            if (!emailsVistos.Add(u.Email.Trim().ToLowerInvariant())) continue;
+            db.Usuarios.Add(new Usuario
             {
-                db.Usuarios.Add(new Usuario
-                {
-                    EmisorId = emisorId,
-                    Email = u.Email,
-                    PasswordHash = u.PasswordHash,
-                    Nombre = u.Nombre,
-                    Rol = Enum.Parse<RolUsuario>(u.Rol),
-                    Activo = u.Activo,
-                    FechaAlta = u.FechaAlta,
-                });
-            }
+                EmisorId = emisorId,
+                Email = u.Email.Trim(),
+                PasswordHash = u.PasswordHash,
+                Nombre = u.Nombre,
+                Rol = Enum.Parse<RolUsuario>(u.Rol),
+                Activo = u.Activo,
+                FechaAlta = u.FechaAlta,
+            });
+        }
+        await db.SaveChangesAsync();
+
+        var familiaMap = new Dictionary<int, int>();
+        var familiasPending = new List<(int OldId, Familia Entity)>();
+        foreach (var f in backup.Familias)
+        {
+            var entity = new Familia
+            {
+                EmisorId = emisorId,
+                Nombre = f.Nombre,
+                CuotaMensual = f.CuotaMensual,
+                Observaciones = f.Observaciones,
+            };
+            familiasPending.Add((f.Id, entity));
+            db.Familias.Add(entity);
+        }
+        if (familiasPending.Count > 0)
+        {
             await db.SaveChangesAsync();
+            foreach (var (oldId, entity) in familiasPending)
+                familiaMap[oldId] = entity.Id;
+        }
 
-            var familiaMap = new Dictionary<int, int>();
-            foreach (var f in backup.Familias)
+        var socioMap = new Dictionary<int, int>();
+        var sociosPending = new List<(int OldId, Socio Entity)>();
+        var cedulaToNewId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in backup.Socios)
+        {
+            var cedula = NormalizeCedulaImport(s.Cedula, s.NumeroSocio);
+            if (cedulaToNewId.TryGetValue(cedula, out var existingId))
             {
-                var entity = new Familia
-                {
-                    EmisorId = emisorId,
-                    Nombre = f.Nombre,
-                    CuotaMensual = f.CuotaMensual,
-                    Observaciones = f.Observaciones,
-                };
-                db.Familias.Add(entity);
-                await db.SaveChangesAsync();
-                familiaMap[f.Id] = entity.Id;
+                socioMap[s.Id] = existingId;
+                continue;
             }
 
-            var socioMap = new Dictionary<int, int>();
-            foreach (var s in backup.Socios)
+            var entity = new Socio
             {
-                var entity = new Socio
-                {
-                    EmisorId = emisorId,
-                    NumeroSocio = s.NumeroSocio,
-                    Nombre = s.Nombre,
-                    Apellido = s.Apellido,
-                    Cedula = s.Cedula,
-                    TipoIdentificacion = Enum.Parse<TipoIdentificacionSocio>(s.TipoIdentificacion),
-                    Telefono = s.Telefono,
-                    Email = s.Email,
-                    Direccion = s.Direccion,
-                    Ciudad = s.Ciudad,
-                    Departamento = s.Departamento,
-                    FechaAlta = s.FechaAlta,
-                    FechaVencimiento = s.FechaVencimiento,
-                    CuotaMensual = s.CuotaMensual,
-                    MedioPago = Enum.Parse<MetodoPago>(s.MedioPago),
-                    Estado = Enum.Parse<EstadoSocio>(s.Estado),
-                    Observaciones = s.Observaciones,
-                    FamiliaId = s.FamiliaId.HasValue && familiaMap.TryGetValue(s.FamiliaId.Value, out var fid) ? fid : null,
-                };
-                db.Socios.Add(entity);
-                await db.SaveChangesAsync();
-                socioMap[s.Id] = entity.Id;
-            }
-
-            var clienteMap = new Dictionary<int, int>();
-            foreach (var c in backup.Clientes)
-            {
-                var entity = new Cliente
-                {
-                    EmisorId = emisorId,
-                    Nombre = c.Nombre,
-                    Apellido = c.Apellido,
-                    Cedula = c.Cedula,
-                    Telefono = c.Telefono,
-                    Email = c.Email,
-                    Ciudad = c.Ciudad,
-                    FechaRegistro = c.FechaRegistro,
-                    Observaciones = c.Observaciones,
-                };
-                db.Clientes.Add(entity);
-                await db.SaveChangesAsync();
-                clienteMap[c.Id] = entity.Id;
-            }
-
-            var servicioMap = new Dictionary<int, int>();
-            foreach (var s in backup.Servicios)
-            {
-                var entity = new Servicio
-                {
-                    EmisorId = emisorId,
-                    Nombre = s.Nombre,
-                    Descripcion = s.Descripcion,
-                    Categoria = Enum.Parse<CategoriaServicio>(s.Categoria),
-                    Precio = s.Precio,
-                    DuracionMinutos = s.DuracionMinutos,
-                    Activo = s.Activo,
-                    SoloSocios = s.SoloSocios,
-                };
-                db.Servicios.Add(entity);
-                await db.SaveChangesAsync();
-                servicioMap[s.Id] = entity.Id;
-            }
-
-            var cuotaMap = new Dictionary<int, int>();
-            foreach (var c in backup.Cuotas)
-            {
-                if (!socioMap.TryGetValue(c.SocioId, out var socioId)) continue;
-                var entity = new CuotaMensual
-                {
-                    EmisorId = emisorId,
-                    SocioId = socioId,
-                    Mes = c.Mes,
-                    Anio = c.Anio,
-                    MontoCuota = c.MontoCuota,
-                    MontoServicios = c.MontoServicios,
-                    MontoPagado = c.MontoPagado,
-                    EstadoPago = Enum.Parse<EstadoPago>(c.EstadoPago),
-                    FechaVencimiento = c.FechaVencimiento,
-                    FechaPago = c.FechaPago,
-                };
-                db.CuotasMensuales.Add(entity);
-                await db.SaveChangesAsync();
-                cuotaMap[c.Id] = entity.Id;
-            }
-
-            var cargoMap = new Dictionary<int, int>();
-            foreach (var c in backup.Cargos)
-            {
-                if (!servicioMap.TryGetValue(c.ServicioId, out var servicioId)) continue;
-                var entity = new Cargo
-                {
-                    EmisorId = emisorId,
-                    ServicioId = servicioId,
-                    SocioId = c.SocioId.HasValue && socioMap.TryGetValue(c.SocioId.Value, out var sid) ? sid : null,
-                    ClienteId = c.ClienteId.HasValue && clienteMap.TryGetValue(c.ClienteId.Value, out var cid) ? cid : null,
-                    CuotaMensualId = c.CuotaMensualId.HasValue && cuotaMap.TryGetValue(c.CuotaMensualId.Value, out var qid) ? qid : null,
-                    Fecha = c.Fecha,
-                    Monto = c.Monto,
-                    Cantidad = c.Cantidad,
-                    EstadoPago = Enum.Parse<EstadoPago>(c.EstadoPago),
-                    SumarACuota = c.SumarACuota,
-                    Notas = c.Notas,
-                    AtendidoPor = c.AtendidoPor,
-                };
-                db.Cargos.Add(entity);
-                await db.SaveChangesAsync();
-                cargoMap[c.Id] = entity.Id;
-            }
-
-            foreach (var p in backup.Pagos)
-            {
-                db.Pagos.Add(new Pago
-                {
-                    EmisorId = emisorId,
-                    CargoId = p.CargoId.HasValue && cargoMap.TryGetValue(p.CargoId.Value, out var cargoid) ? cargoid : null,
-                    CuotaMensualId = p.CuotaMensualId.HasValue && cuotaMap.TryGetValue(p.CuotaMensualId.Value, out var cuotaid) ? cuotaid : null,
-                    Monto = p.Monto,
-                    MetodoPago = Enum.Parse<MetodoPago>(p.MetodoPago),
-                    Fecha = p.Fecha,
-                    Referencia = p.Referencia,
-                    RegistradoPor = p.RegistradoPor,
-                    Notas = p.Notas,
-                });
-            }
+                EmisorId = emisorId,
+                NumeroSocio = s.NumeroSocio,
+                Nombre = s.Nombre,
+                Apellido = s.Apellido,
+                Cedula = cedula,
+                TipoIdentificacion = Enum.Parse<TipoIdentificacionSocio>(s.TipoIdentificacion),
+                Telefono = s.Telefono,
+                Email = s.Email,
+                Direccion = s.Direccion,
+                Ciudad = s.Ciudad,
+                Departamento = s.Departamento,
+                FechaAlta = s.FechaAlta,
+                FechaVencimiento = s.FechaVencimiento,
+                CuotaMensual = s.CuotaMensual,
+                MedioPago = Enum.Parse<MetodoPago>(s.MedioPago),
+                Estado = Enum.Parse<EstadoSocio>(s.Estado),
+                Observaciones = s.Observaciones,
+                FamiliaId = s.FamiliaId.HasValue && familiaMap.TryGetValue(s.FamiliaId.Value, out var fid) ? fid : null,
+            };
+            sociosPending.Add((s.Id, entity));
+            db.Socios.Add(entity);
+        }
+        if (sociosPending.Count > 0)
+        {
             await db.SaveChangesAsync();
-
-            foreach (var i in backup.Ingresos)
+            foreach (var (oldId, entity) in sociosPending)
             {
-                if (!socioMap.TryGetValue(i.SocioId, out var socioId)) continue;
-                db.Ingresos.Add(new Ingreso
-                {
-                    EmisorId = emisorId,
-                    SocioId = socioId,
-                    FechaHora = i.FechaHora,
-                    Tipo = Enum.Parse<TipoIngreso>(i.Tipo),
-                    AccesoPermitido = i.AccesoPermitido,
-                    MotivoRechazo = i.MotivoRechazo,
-                });
+                socioMap[oldId] = entity.Id;
+                cedulaToNewId[entity.Cedula] = entity.Id;
             }
+        }
+
+        var clienteMap = new Dictionary<int, int>();
+        var clientesPending = new List<(int OldId, Cliente Entity)>();
+        foreach (var c in backup.Clientes)
+        {
+            var entity = new Cliente
+            {
+                EmisorId = emisorId,
+                Nombre = c.Nombre,
+                Apellido = c.Apellido,
+                Cedula = c.Cedula,
+                Telefono = c.Telefono,
+                Email = c.Email,
+                Ciudad = c.Ciudad,
+                FechaRegistro = c.FechaRegistro,
+                Observaciones = c.Observaciones,
+            };
+            clientesPending.Add((c.Id, entity));
+            db.Clientes.Add(entity);
+        }
+        if (clientesPending.Count > 0)
+        {
             await db.SaveChangesAsync();
+            foreach (var (oldId, entity) in clientesPending)
+                clienteMap[oldId] = entity.Id;
+        }
+
+        var servicioMap = new Dictionary<int, int>();
+        var serviciosPending = new List<(int OldId, Servicio Entity)>();
+        foreach (var s in backup.Servicios)
+        {
+            var entity = new Servicio
+            {
+                EmisorId = emisorId,
+                Nombre = s.Nombre,
+                Descripcion = s.Descripcion,
+                Categoria = Enum.Parse<CategoriaServicio>(s.Categoria),
+                Precio = s.Precio,
+                DuracionMinutos = s.DuracionMinutos,
+                Activo = s.Activo,
+                SoloSocios = s.SoloSocios,
+            };
+            serviciosPending.Add((s.Id, entity));
+            db.Servicios.Add(entity);
+        }
+        if (serviciosPending.Count > 0)
+        {
+            await db.SaveChangesAsync();
+            foreach (var (oldId, entity) in serviciosPending)
+                servicioMap[oldId] = entity.Id;
+        }
+
+        var cuotaMap = new Dictionary<int, int>();
+        var cuotasPending = new List<(int OldId, CuotaMensual Entity)>();
+        foreach (var c in backup.Cuotas)
+        {
+            if (!socioMap.TryGetValue(c.SocioId, out var socioId)) continue;
+            var entity = new CuotaMensual
+            {
+                EmisorId = emisorId,
+                SocioId = socioId,
+                Mes = c.Mes,
+                Anio = c.Anio,
+                MontoCuota = c.MontoCuota,
+                MontoServicios = c.MontoServicios,
+                MontoPagado = c.MontoPagado,
+                EstadoPago = Enum.Parse<EstadoPago>(c.EstadoPago),
+                FechaVencimiento = c.FechaVencimiento,
+                FechaPago = c.FechaPago,
+            };
+            cuotasPending.Add((c.Id, entity));
+            db.CuotasMensuales.Add(entity);
+        }
+        if (cuotasPending.Count > 0)
+        {
+            await db.SaveChangesAsync();
+            foreach (var (oldId, entity) in cuotasPending)
+                cuotaMap[oldId] = entity.Id;
+        }
+
+        var cargoMap = new Dictionary<int, int>();
+        var cargosPending = new List<(int OldId, Cargo Entity)>();
+        foreach (var c in backup.Cargos)
+        {
+            if (!servicioMap.TryGetValue(c.ServicioId, out var servicioId)) continue;
+            var entity = new Cargo
+            {
+                EmisorId = emisorId,
+                ServicioId = servicioId,
+                SocioId = c.SocioId.HasValue && socioMap.TryGetValue(c.SocioId.Value, out var sid) ? sid : null,
+                ClienteId = c.ClienteId.HasValue && clienteMap.TryGetValue(c.ClienteId.Value, out var cid) ? cid : null,
+                CuotaMensualId = c.CuotaMensualId.HasValue && cuotaMap.TryGetValue(c.CuotaMensualId.Value, out var qid) ? qid : null,
+                Fecha = c.Fecha,
+                Monto = c.Monto,
+                Cantidad = c.Cantidad,
+                EstadoPago = Enum.Parse<EstadoPago>(c.EstadoPago),
+                SumarACuota = c.SumarACuota,
+                Notas = c.Notas,
+                AtendidoPor = c.AtendidoPor,
+            };
+            cargosPending.Add((c.Id, entity));
+            db.Cargos.Add(entity);
+        }
+        if (cargosPending.Count > 0)
+        {
+            await db.SaveChangesAsync();
+            foreach (var (oldId, entity) in cargosPending)
+                cargoMap[oldId] = entity.Id;
+        }
+
+        foreach (var p in backup.Pagos)
+        {
+            db.Pagos.Add(new Pago
+            {
+                EmisorId = emisorId,
+                CargoId = p.CargoId.HasValue && cargoMap.TryGetValue(p.CargoId.Value, out var cargoid) ? cargoid : null,
+                CuotaMensualId = p.CuotaMensualId.HasValue && cuotaMap.TryGetValue(p.CuotaMensualId.Value, out var cuotaid) ? cuotaid : null,
+                Monto = p.Monto,
+                MetodoPago = Enum.Parse<MetodoPago>(p.MetodoPago),
+                Fecha = p.Fecha,
+                Referencia = p.Referencia,
+                RegistradoPor = p.RegistradoPor,
+                Notas = p.Notas,
+            });
+        }
+
+        foreach (var i in backup.Ingresos)
+        {
+            if (!socioMap.TryGetValue(i.SocioId, out var socioId)) continue;
+            db.Ingresos.Add(new Ingreso
+            {
+                EmisorId = emisorId,
+                SocioId = socioId,
+                FechaHora = i.FechaHora,
+                Tipo = Enum.Parse<TipoIngreso>(i.Tipo),
+                AccesoPermitido = i.AccesoPermitido,
+                MotivoRechazo = i.MotivoRechazo,
+            });
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static string NormalizeCedulaImport(string? cedula, string numeroSocio)
+    {
+        var trimmed = cedula?.Trim() ?? "";
+        if (trimmed.Length > 0) return trimmed;
+        return numeroSocio;
     }
 
     private async Task ClearEmisorDataAsync(int emisorId)

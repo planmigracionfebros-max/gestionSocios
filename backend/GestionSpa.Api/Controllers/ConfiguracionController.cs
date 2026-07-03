@@ -4,6 +4,7 @@ using GestionSpa.Api.Models;
 using GestionSpa.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace GestionSpa.Api.Controllers;
 
@@ -78,6 +79,11 @@ public class ConfiguracionController(ITenantContext tenant, IEmisorBackupService
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { mensaje = ex.Message, errores = new[] { ex.Message } });
+        }
+        catch (DbUpdateException ex)
+        {
+            var msg = ex.InnerException?.Message ?? ex.Message;
+            return BadRequest(new { mensaje = "Error al guardar en la base de datos", errores = new[] { msg } });
         }
     }
 }

@@ -28,7 +28,7 @@ export default function Layout() {
     { to: '/cargos', icon: Receipt, label: 'Cargos' },
     { to: '/cuotas', icon: CreditCard, label: 'Cuotas' },
     { to: '/informes', icon: BarChart3, label: 'Informes' },
-    ...(!isSuperAdmin ? [{ to: '/portero', icon: Settings, label: 'Config. portero' }] : []),
+    ...(!isSuperAdmin ? [{ to: '/configuracion', icon: Settings, label: 'Configuración' }] : []),
   ];
 
   useEffect(() => {

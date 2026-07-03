@@ -259,6 +259,34 @@ export interface PorteroAccion {
   detalle?: unknown;
 }
 
+export interface EmisorBackupResumen {
+  emisorNombre: string;
+  emisorSlug: string;
+  exportedAt: string;
+  usuarios: number;
+  familias: number;
+  socios: number;
+  clientes: number;
+  servicios: number;
+  cuotas: number;
+  cargos: number;
+  pagos: number;
+  ingresos: number;
+}
+
+export interface EmisorImportResult {
+  mensaje: string;
+  usuarios: number;
+  familias: number;
+  socios: number;
+  clientes: number;
+  servicios: number;
+  cuotas: number;
+  cargos: number;
+  pagos: number;
+  ingresos: number;
+}
+
 export interface Ingreso {
   id: number;
   socioId: number;

@@ -29,6 +29,28 @@ async function request<T>(endpoint: string, options?: RequestInit & { skipAuth?:
   return res.json() as Promise<T>;
 }
 
+async function uploadFile(endpoint: string, file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const headers: Record<string, string> = {};
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  if (emisorId) headers['X-Emisor-Id'] = String(emisorId);
+
+  const res = await fetch(`${API_URL}${endpoint}`, { method: 'POST', headers, body: formData });
+  if (res.status === 401) {
+    localStorage.removeItem('gestionspa_auth');
+    localStorage.removeItem('gestionspa_emisor');
+    window.location.href = '/login';
+    throw new Error('Sesión expirada');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ mensaje: res.statusText }));
+    const msg = err.errores?.length ? err.errores.join('. ') : (err.mensaje || res.statusText);
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
 async function downloadFile(endpoint: string, fallbackName: string) {
   const headers: Record<string, string> = {};
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
@@ -204,5 +226,10 @@ export const api = {
       request<import('../types').PorteroPruebaConexion>('/portero/probar', { method: 'POST', body: JSON.stringify(data ?? null) }),
     sincronizar: () => request<import('../types').PorteroSincronizacion>('/portero/sincronizar', { method: 'POST' }),
     abrirPuerta: () => request<import('../types').PorteroAccion>('/portero/abrir-puerta', { method: 'POST' }),
+  },
+  configuracion: {
+    exportBackup: () => downloadFile('/configuracion/export', 'gestionspa-backup.json'),
+    resumenBackup: () => request<import('../types').EmisorBackupResumen>('/configuracion/export/resumen'),
+    importBackup: (file: File) => uploadFile('/configuracion/import', file) as Promise<import('../types').EmisorImportResult>,
   },
 };

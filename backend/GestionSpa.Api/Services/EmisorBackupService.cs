@@ -280,12 +280,14 @@ public class EmisorBackupService(AppDbContext db) : IEmisorBackupService
         var socioMap = new Dictionary<int, int>();
         var sociosPending = new List<(int OldId, Socio Entity)>();
         var cedulaToNewId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var cedulasVistas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var sociosDuplicados = new List<(int OldId, string Cedula)>();
         foreach (var s in backup.Socios)
         {
             var cedula = NormalizeCedulaImport(s.Cedula, s.NumeroSocio);
-            if (cedulaToNewId.TryGetValue(cedula, out var existingId))
+            if (!cedulasVistas.Add(cedula))
             {
-                socioMap[s.Id] = existingId;
+                sociosDuplicados.Add((s.Id, cedula));
                 continue;
             }
 
@@ -320,6 +322,11 @@ public class EmisorBackupService(AppDbContext db) : IEmisorBackupService
             {
                 socioMap[oldId] = entity.Id;
                 cedulaToNewId[entity.Cedula] = entity.Id;
+            }
+            foreach (var (oldId, cedula) in sociosDuplicados)
+            {
+                if (cedulaToNewId.TryGetValue(cedula, out var newId))
+                    socioMap[oldId] = newId;
             }
         }
 
